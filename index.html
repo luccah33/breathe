@@ -1,0 +1,4084 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1120" />
+  <meta name="app-version" content="2026.08.30-v7-prototype" />
+  <title>Volmer Briefing Atemtimer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070b14;
+      --bg-soft: #0b1220;
+      --panel: rgba(16, 24, 40, .88);
+      --panel-solid: #101828;
+      --panel-2: #162033;
+      --text: #f5f7ff;
+      --muted: #9ba8c3;
+      --line: rgba(255, 255, 255, .11);
+      --line-strong: rgba(255, 255, 255, .18);
+      --accent: #7aa7ff;
+      --accent-soft: rgba(122, 167, 255, .16);
+      --mint: #87e5bd;
+      --mint-soft: rgba(135, 229, 189, .14);
+      --warn: #ffd18a;
+      --danger: #ff9696;
+      --phase-color: var(--accent);
+      --radius-lg: 28px;
+      --radius-md: 18px;
+      --radius-sm: 13px;
+      --shadow: 0 28px 80px rgba(0, 0, 0, .34);
+      --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { min-height: 100%; scroll-behavior: smooth; }
+    body {
+      min-height: 100%;
+      margin: 0;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 0%, rgba(122, 167, 255, .20), transparent 31rem),
+        radial-gradient(circle at 100% 30%, rgba(135, 229, 189, .12), transparent 29rem),
+        linear-gradient(180deg, #0a1020 0%, var(--bg) 55%, #060910 100%);
+    }
+
+    body[data-phase="inhale"], body[data-phase="recoveryInhale"] { --phase-color: #84b6ff; }
+    body[data-phase="exhale"] { --phase-color: #87e5bd; }
+    body[data-phase="exhaleHold"], body[data-phase="recoveryHold"] { --phase-color: #c7a7ff; }
+    body[data-phase="prepare"], body[data-phase="nextRoundPause"], body[data-phase="nextRoundCountdown"] { --phase-color: #ffd18a; }
+    body[data-phase="complete"] { --phase-color: #87e5bd; }
+
+    button, input, select { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .app {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 20px 0 max(30px, env(safe-area-inset-bottom));
+    }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 16px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 13px; min-width: 0; }
+    .brand-mark {
+      width: 48px;
+      height: 48px;
+      flex: 0 0 auto;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      color: #07111d;
+      background: linear-gradient(145deg, var(--mint), var(--accent));
+      box-shadow: 0 12px 30px rgba(122, 167, 255, .22);
+      font-size: 1.45rem;
+      font-weight: 900;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.35rem, 3.4vw, 2rem);
+      letter-spacing: -.035em;
+      line-height: 1.08;
+    }
+    .subtitle { margin: 5px 0 0; color: var(--muted); font-size: .92rem; line-height: 1.35; }
+
+    .header-status { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 36px;
+      padding: 7px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .05);
+      font-size: .83rem;
+      white-space: nowrap;
+    }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 0 4px rgba(135, 229, 189, .10); }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, rgba(255, 255, 255, .065), rgba(255, 255, 255, .025));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+
+    .dashboard { overflow: hidden; }
+    .dashboard-toolbar {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding: 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(5, 10, 19, .28);
+    }
+
+    .round-control {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(0, 0, 0, .18);
+    }
+    .round-control-label { color: var(--muted); font-size: .82rem; padding-left: 6px; }
+    .stepper-button {
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+      color: var(--text);
+      background: rgba(255, 255, 255, .08);
+      font-size: 1.1rem;
+      font-weight: 800;
+    }
+    .stepper-button:disabled { opacity: .35; cursor: not-allowed; }
+    .round-input {
+      width: 48px;
+      min-height: 36px;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      color: var(--text);
+      background: transparent;
+      text-align: center;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      -moz-appearance: textfield;
+    }
+    .round-input::-webkit-inner-spin-button,
+    .round-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+    .profile-summary {
+      min-width: 0;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+    .summary-chip {
+      max-width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .045);
+      color: var(--muted);
+      font-size: .82rem;
+      white-space: nowrap;
+    }
+    .summary-chip strong { color: var(--text); font-weight: 700; }
+
+    .icon-button {
+      min-height: 44px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      cursor: pointer;
+      color: var(--text);
+      background: rgba(255, 255, 255, .07);
+      font-weight: 700;
+    }
+
+    .stage {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(250px, 330px);
+      gap: clamp(18px, 4vw, 44px);
+      align-items: center;
+      min-height: 570px;
+      padding: clamp(22px, 4vw, 44px);
+    }
+
+    .stage-main { min-width: 0; text-align: center; }
+    .phase-kicker {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .16em;
+      font-size: .78rem;
+      font-weight: 700;
+    }
+    .phase-name {
+      margin-top: 7px;
+      font-size: clamp(2rem, 6vw, 4.4rem);
+      line-height: .95;
+      font-weight: 850;
+      letter-spacing: -.055em;
+    }
+
+    .timer-ring {
+      --p: 0deg;
+      position: relative;
+      isolation: isolate;
+      width: min(72vw, 350px);
+      aspect-ratio: 1;
+      margin: 24px auto 20px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(var(--phase-color) var(--p), rgba(255, 255, 255, .10) var(--p));
+      box-shadow: 0 0 54px color-mix(in srgb, var(--phase-color) 18%, transparent);
+      transition: box-shadow .25s ease;
+    }
+    .timer-ring::before {
+      content: "";
+      position: absolute;
+      inset: 9px;
+      z-index: -1;
+      border-radius: inherit;
+      border: 1px solid var(--line);
+      background:
+        radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--phase-color) 12%, transparent), transparent 45%),
+        var(--panel-solid);
+    }
+    .timer-value {
+      font-size: clamp(3.2rem, 11vw, 6.3rem);
+      line-height: .9;
+      font-weight: 830;
+      letter-spacing: -.055em;
+      font-variant-numeric: tabular-nums;
+    }
+    .phase-detail {
+      width: min(470px, 100%);
+      min-height: 44px;
+      margin: 13px auto 0;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .total-progress { width: min(570px, 100%); margin: 0 auto; text-align: left; }
+    .progress-labels {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: .84rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .progress-track {
+      height: 11px;
+      padding: 2px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(0, 0, 0, .22);
+    }
+    .progress-fill {
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--mint), var(--accent));
+      transform: scaleX(0);
+      transform-origin: left center;
+      will-change: transform;
+    }
+
+    .stage-side { display: grid; gap: 12px; }
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .metric {
+      min-height: 90px;
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: rgba(0, 0, 0, .17);
+    }
+    .metric.wide { grid-column: 1 / -1; }
+    .metric strong {
+      display: block;
+      overflow-wrap: anywhere;
+      font-size: 1.45rem;
+      letter-spacing: -.025em;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric span { display: block; margin-top: 5px; color: var(--muted); font-size: .82rem; line-height: 1.3; }
+
+    .round-ramp {
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: linear-gradient(145deg, rgba(122, 167, 255, .11), rgba(135, 229, 189, .07));
+    }
+    .round-ramp-title { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .11em; }
+    .ramp-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 9px; align-items: center; margin-top: 11px; }
+    .ramp-value { padding: 10px; border-radius: 12px; background: rgba(0, 0, 0, .18); }
+    .ramp-value small { display: block; color: var(--muted); font-size: .73rem; }
+    .ramp-value strong { display: block; margin-top: 4px; font-size: .98rem; font-variant-numeric: tabular-nums; }
+    .ramp-arrow { color: var(--muted); }
+
+    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .controls .wide { grid-column: 1 / -1; }
+    .btn {
+      min-height: 51px;
+      padding: 13px 15px;
+      border: 0;
+      border-radius: 14px;
+      cursor: pointer;
+      color: #07111d;
+      background: var(--accent);
+      font-weight: 800;
+      transition: transform .12s ease, opacity .12s ease, filter .12s ease;
+    }
+    .btn:hover:not(:disabled) { filter: brightness(1.05); }
+    .btn:active:not(:disabled) { transform: translateY(1px) scale(.995); }
+    .btn.good { background: var(--mint); }
+    .btn.warn { background: var(--warn); }
+    .btn.secondary { color: var(--text); border: 1px solid var(--line); background: rgba(255, 255, 255, .075); }
+    .btn.danger { color: #ffdede; border: 1px solid rgba(255, 150, 150, .34); background: rgba(255, 150, 150, .12); }
+    .btn.compact { min-height: 44px; padding: 10px 12px; }
+    .btn:disabled { opacity: .38; cursor: not-allowed; filter: none; transform: none; }
+
+    .settings-panel { margin-top: 16px; overflow: hidden; }
+    .settings-panel > summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 76px;
+      padding: 17px 20px;
+      cursor: pointer;
+      background: rgba(5, 10, 19, .22);
+    }
+    .settings-panel > summary::-webkit-details-marker { display: none; }
+    .settings-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .settings-icon {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, .06);
+    }
+    .settings-title strong { display: block; font-size: 1.02rem; }
+    .settings-title small { display: block; margin-top: 3px; color: var(--muted); line-height: 1.3; }
+    .chevron { color: var(--muted); font-size: 1.25rem; transition: transform .2s ease; }
+    .settings-panel[open] .chevron { transform: rotate(180deg); }
+
+    .settings-content { padding: 0 20px 22px; border-top: 1px solid var(--line); }
+    .settings-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; margin-top: 18px; }
+    .settings-section {
+      min-width: 0;
+      padding: 17px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(0, 0, 0, .14);
+    }
+    .settings-section.span-2 { grid-column: 1 / -1; }
+    .section-heading { margin: 0; font-size: 1rem; letter-spacing: -.015em; }
+    .section-hint { margin: 6px 0 0; color: var(--muted); font-size: .84rem; line-height: 1.45; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-top: 14px; }
+    .field { display: grid; gap: 7px; color: var(--muted); font-size: .84rem; }
+    .field.full { grid-column: 1 / -1; }
+    input, select {
+      width: 100%;
+      min-height: 45px;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      outline: 0;
+      color: var(--text);
+      background: rgba(0, 0, 0, .24);
+      font-variant-numeric: tabular-nums;
+    }
+    input:focus, select:focus { border-color: rgba(122, 167, 255, .78); box-shadow: 0 0 0 3px rgba(122, 167, 255, .12); }
+    input:disabled, select:disabled { opacity: .48; cursor: not-allowed; }
+
+    .ramp-table {
+      display: grid;
+      grid-template-columns: minmax(155px, 1.2fr) minmax(120px, .8fr) minmax(120px, .8fr);
+      gap: 9px;
+      align-items: center;
+      margin-top: 15px;
+    }
+    .ramp-head { color: var(--muted); font-size: .76rem; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
+    .ramp-label { color: var(--text); font-size: .88rem; line-height: 1.3; }
+    .ramp-label small { display: block; margin-top: 3px; color: var(--muted); }
+
+    .switches { display: grid; gap: 9px; margin-top: 14px; }
+    .switch {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 50px;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(255, 255, 255, .035);
+      color: var(--text);
+      font-size: .86rem;
+      line-height: 1.35;
+    }
+    .switch input { width: 19px; height: 19px; min-height: 0; flex: 0 0 auto; accent-color: var(--accent); }
+
+    .preset-box {
+      margin-top: 14px;
+      padding: 13px;
+      border: 1px solid rgba(135, 229, 189, .24);
+      border-radius: 14px;
+      background: var(--mint-soft);
+    }
+    .preset-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .preset-chip { padding: 6px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(0, 0, 0, .14); font-size: .76rem; }
+    .preset-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 11px; }
+    .preset-actions .full { grid-column: 1 / -1; }
+
+    .notice {
+      padding: 14px;
+      border: 1px solid rgba(255, 209, 138, .30);
+      border-radius: 15px;
+      color: #ffe7bd;
+      background: rgba(255, 209, 138, .075);
+      font-size: .84rem;
+      line-height: 1.5;
+    }
+
+    .adaptive-box {
+      margin-top: 14px;
+      padding: 13px;
+      border: 1px solid rgba(122, 167, 255, .25);
+      border-radius: 14px;
+      background: var(--accent-soft);
+    }
+    .adaptive-status { color: var(--text); font-size: .86rem; line-height: 1.45; }
+    .adaptive-status small { display: block; margin-top: 5px; color: var(--muted); }
+    .adaptive-actions { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(2, 6, 13, .72);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+    .modal-backdrop.open { display: flex; }
+    .adaptive-modal {
+      width: min(680px, 100%);
+      max-height: min(82vh, 780px);
+      overflow: auto;
+      padding: 20px;
+      border: 1px solid var(--line-strong);
+      border-radius: 24px;
+      background: linear-gradient(180deg, #172239, #0c1423);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, .5);
+    }
+    .adaptive-modal h2 { margin: 0; font-size: 1.35rem; letter-spacing: -.025em; }
+    .adaptive-modal-intro { margin: 8px 0 0; color: var(--muted); line-height: 1.5; font-size: .9rem; }
+    .adaptive-changes { display: grid; gap: 9px; margin-top: 16px; }
+    .adaptive-change {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,.04);
+    }
+    .adaptive-change strong { display: block; font-size: .9rem; }
+    .adaptive-change small { display: block; margin-top: 4px; color: var(--muted); line-height: 1.35; }
+    .adaptive-value { color: var(--mint); font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .adaptive-evidence {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 13px;
+      background: rgba(0,0,0,.16);
+      color: var(--muted);
+      font-size: .82rem;
+      line-height: 1.5;
+    }
+    .adaptive-modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 16px; }
+
+    .range-tabs { display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+    .range-tab { border:1px solid var(--line); background:rgba(255,255,255,.035); color:var(--muted); border-radius:999px; padding:7px 10px; font-size:.78rem; font-weight:760; }
+    .range-tab.active { color:var(--text); background:rgba(122,167,255,.14); border-color:rgba(122,167,255,.30); }
+
+    .session-list { display:grid; gap:9px; }
+    .session-row { width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:center; padding:14px; text-align:left; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.04); color:var(--text); }
+    .session-row:hover { background:rgba(255,255,255,.065); }
+    .session-row strong { display:block; font-size:.94rem; }
+    .session-row span { display:block; margin-top:4px; color:var(--muted); font-size:.8rem; line-height:1.35; }
+    .session-row-value { text-align:right; font-weight:850; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .session-row-value small { display:block; margin-top:4px; color:var(--muted); font-weight:650; }
+    .session-badge { display:inline-flex !important; width:max-content; margin-top:7px !important; padding:4px 7px; border-radius:999px; background:rgba(199,167,255,.12); color:#dccbff !important; border:1px solid rgba(199,167,255,.22); font-size:.72rem !important; font-weight:760; }
+
+    .session-detail-modal { position:fixed; inset:0; z-index:92; display:none; place-items:end center; padding:14px; background:rgba(3,8,13,.78); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+    .session-detail-modal.open { display:grid; }
+    .session-detail-shell { width:min(760px,100%); max-height:min(84vh,820px); overflow:auto; padding:18px; border:1px solid var(--line); border-radius:24px 24px 16px 16px; background:linear-gradient(180deg,#172239,#0c1423); box-shadow:0 30px 90px rgba(0,0,0,.5); }
+    .session-detail-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .session-detail-top h2 { margin:5px 0 0; font-size:1.35rem; letter-spacing:-.025em; }
+    .session-detail-close { width:40px; height:40px; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.06); color:var(--text); font-size:1.25rem; }
+    .session-detail-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px; }
+    .session-detail-kpi { padding:12px; border:1px solid var(--line); border-radius:14px; background:rgba(0,0,0,.15); }
+    .session-detail-kpi strong { display:block; font-size:1.05rem; }
+    .session-detail-kpi span { display:block; margin-top:4px; color:var(--muted); font-size:.75rem; line-height:1.3; }
+    .round-detail-list { display:grid; gap:8px; margin-top:14px; }
+    .round-detail { padding:13px; border:1px solid var(--line); border-radius:15px; background:rgba(255,255,255,.035); }
+    .round-detail-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .round-detail-head strong { font-size:.92rem; }
+    .round-detail-head span { color:var(--mint); font-weight:800; font-variant-numeric:tabular-nums; }
+    .round-detail-meta { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:9px; }
+    .round-detail-meta div { padding:8px; border-radius:11px; background:rgba(0,0,0,.16); color:var(--muted); font-size:.76rem; line-height:1.35; }
+    .round-detail-meta strong { color:var(--text); font-size:.82rem; }
+
+    .log {
+      max-height: 165px;
+      margin-top: 13px;
+      overflow: auto;
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(0, 0, 0, .16);
+      color: var(--muted);
+      font-size: .8rem;
+      line-height: 1.45;
+    }
+    .log div { padding: 5px 0; border-bottom: 1px solid rgba(255, 255, 255, .065); }
+    .log div:last-child { border-bottom: 0; }
+
+    footer { margin-top: 15px; padding: 0 4px; color: var(--muted); font-size: .8rem; line-height: 1.45; }
+
+    @media (max-width: 900px) {
+      .dashboard-toolbar { grid-template-columns: auto 1fr; }
+      .profile-summary { justify-content: flex-start; grid-column: 1 / -1; grid-row: 2; }
+      .icon-button { grid-column: 2; grid-row: 1; justify-self: end; }
+      .stage { grid-template-columns: 1fr; min-height: auto; }
+      .stage-side { width: min(590px, 100%); margin: 0 auto; }
+      .settings-grid { grid-template-columns: 1fr; }
+      .settings-section.span-2 { grid-column: auto; }
+    }
+
+    @media (max-width: 620px) {
+      .app { width: min(100% - 16px, 1180px); padding-top: 10px; }
+      .app-header { align-items: flex-start; }
+      .brand-mark { width: 42px; height: 42px; border-radius: 14px; }
+      .subtitle { display: none; }
+      .header-status .status-pill:first-child { display: none; }
+      .dashboard-toolbar { grid-template-columns: 1fr auto; padding: 10px; }
+      .round-control { justify-self: start; }
+      .profile-summary { overflow-x: auto; justify-content: flex-start; flex-wrap: nowrap; width: 100%; padding-bottom: 2px; scrollbar-width: none; }
+      .profile-summary::-webkit-scrollbar { display: none; }
+      .stage { padding: 22px 14px 15px; gap: 25px; }
+      .timer-ring { width: min(82vw, 330px); margin-top: 18px; }
+      .metric { min-height: 82px; padding: 13px; }
+      .controls { grid-template-columns: 1fr; }
+      .controls .wide { grid-column: auto; }
+      .settings-panel > summary { padding: 14px; }
+      .settings-content { padding: 0 12px 14px; }
+      .settings-section { padding: 14px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .ramp-table { grid-template-columns: 1fr 1fr; }
+      .ramp-table .ramp-head:first-child { display: none; }
+      .ramp-label { grid-column: 1 / -1; margin-top: 7px; }
+      .preset-actions { grid-template-columns: 1fr; }
+      .preset-actions .full { grid-column: auto; }
+      .modal-backdrop { padding: 8px; }
+      .adaptive-modal { padding: 16px; border-radius: 20px 20px 14px 14px; }
+      .adaptive-modal-actions { grid-template-columns: 1fr; }
+      .session-detail-modal { padding:8px; }
+      .session-detail-shell { padding:15px; }
+      .session-detail-kpis { grid-template-columns:1fr 1fr; }
+      .round-detail-meta { grid-template-columns:1fr; }
+      .session-row { grid-template-columns:1fr; }
+      .session-row-value { text-align:left; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { scroll-behavior: auto !important; transition: none !important; }
+    }
+
+
+    /* ===== v6: App navigation, personal onboarding, analytics & AI ===== */
+    .app-header { position: relative; }
+    .app-nav-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      margin: -6px 0 16px;
+      padding: 8px 0 10px;
+      background: linear-gradient(180deg, rgba(7,11,20,.96), rgba(7,11,20,.78), transparent);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .app-nav {
+      width: fit-content;
+      max-width: 100%;
+      margin: 0 auto;
+      display: flex;
+      gap: 5px;
+      padding: 5px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.045);
+      scrollbar-width: none;
+    }
+    .app-nav::-webkit-scrollbar { display: none; }
+    .app-nav-button {
+      min-height: 42px;
+      padding: 9px 15px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      white-space: nowrap;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .app-nav-button.active { background: var(--text); color: #07111d; }
+    .app-tab { display: none; }
+    .app-tab.active { display: block; }
+
+    .personal-hero {
+      padding: clamp(22px, 4vw, 42px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      background: linear-gradient(145deg, rgba(255,255,255,.07), rgba(255,255,255,.025));
+      box-shadow: var(--shadow);
+    }
+    .personal-kicker { display:flex; align-items:center; gap:8px; color:var(--muted); text-transform:uppercase; letter-spacing:.12em; font-size:.76rem; font-weight:800; }
+    .personal-hero h2 { margin: 14px 0 11px; max-width: 900px; font-size: clamp(2rem, 5.7vw, 4.4rem); line-height:.98; letter-spacing:-.055em; }
+    .personal-hero p { max-width: 760px; margin:0; color:var(--muted); line-height:1.6; font-size:clamp(.96rem,2vw,1.12rem); }
+    .hero-actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:18px; }
+
+    .ai-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; border:1px solid rgba(199,167,255,.28); border-radius:999px; background:rgba(199,167,255,.12); color:#dcc8ff; font-size:.76rem; font-weight:850; letter-spacing:0; text-transform:none; }
+    .ai-star { font-size:1.05rem; line-height:1; }
+    .analysis-section { margin-top:16px; }
+    .analysis-head { display:flex; justify-content:space-between; align-items:end; gap:12px; margin-bottom:10px; }
+    .analysis-head h2 { margin:0; font-size:1.12rem; letter-spacing:-.02em; }
+    .analysis-head p { margin:4px 0 0; color:var(--muted); font-size:.84rem; line-height:1.4; }
+    .analysis-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+    .analysis-kpi { padding:15px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.045); }
+    .analysis-kpi strong { display:block; font-size:1.45rem; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
+    .analysis-kpi span { display:block; margin-top:5px; color:var(--muted); font-size:.79rem; line-height:1.35; }
+    .analysis-kpi small { display:block; margin-top:8px; color:var(--mint); font-size:.73rem; line-height:1.35; }
+    .analysis-panel { overflow:hidden; border:1px solid var(--line); border-radius:20px; background:rgba(255,255,255,.04); }
+    .analysis-panel-pad { padding:16px; }
+    .metric-tabs { display:flex; flex-wrap:wrap; gap:6px; }
+    .metric-tab { padding:8px 11px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.035); color:var(--muted); cursor:pointer; font-size:.8rem; font-weight:800; }
+    .metric-tab.active { color:#d5f8eb; border-color:rgba(135,229,189,.30); background:rgba(135,229,189,.12); }
+    .chart-box { margin-top:12px; padding:10px; border-radius:15px; background:rgba(0,0,0,.16); }
+    #historyChart { width:100%; height:auto; min-height:230px; display:block; }
+    .chart-empty { min-height:230px; display:grid; place-items:center; color:var(--muted); text-align:center; padding:20px; }
+    .chart-empty[hidden] { display:none !important; }
+    .chart-caption { margin-top:8px; color:var(--muted); font-size:.78rem; line-height:1.4; }
+
+    .story-rail { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(82%,520px); gap:11px; overflow-x:auto; scroll-snap-type:x mandatory; padding:2px 2px 10px; scrollbar-width:none; }
+    .story-rail::-webkit-scrollbar { display:none; }
+    .story-card { min-height:286px; padding:20px; scroll-snap-align:start; border:1px solid var(--line); border-radius:22px; background:linear-gradient(145deg,rgba(255,255,255,.065),rgba(255,255,255,.025)); }
+    .story-card h3 { margin:22px 0 9px; font-size:1.34rem; letter-spacing:-.035em; }
+    .story-card p { margin:0; color:var(--muted); line-height:1.58; }
+    .story-card .evidence { margin-top:16px; padding:11px; border-radius:13px; background:rgba(0,0,0,.17); color:#cfd9e7; font-size:.8rem; line-height:1.45; }
+    .story-index { width:32px; height:32px; display:grid; place-items:center; border-radius:50%; background:rgba(255,255,255,.075); color:var(--muted); font-weight:850; font-size:.78rem; }
+    .story-dots { display:flex; justify-content:center; gap:5px; margin-top:2px; }
+    .story-dot { width:7px; height:7px; padding:0; border:0; border-radius:999px; background:rgba(255,255,255,.20); }
+    .story-dot.active { width:20px; background:var(--mint); }
+
+    .ai-rec-list { display:grid; gap:9px; }
+    .ai-rec { padding:15px; border:1px solid var(--line); border-radius:17px; background:rgba(255,255,255,.04); }
+    .ai-rec-top { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; }
+    .ai-rec h3 { margin:0; font-size:.96rem; }
+    .ai-rec p { margin:5px 0 0; color:var(--muted); line-height:1.45; font-size:.82rem; }
+    .ai-change { color:var(--mint); font-weight:900; white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .ai-rec-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:11px; }
+    .ai-rec-detail { display:none; margin-top:9px; padding:10px; border-radius:12px; background:rgba(0,0,0,.16); color:var(--muted); font-size:.79rem; line-height:1.45; }
+    .ai-rec-detail.open { display:block; }
+    .ai-status-box { padding:14px; border:1px solid var(--line); border-radius:16px; background:linear-gradient(145deg,rgba(199,167,255,.09),rgba(122,167,255,.06)); color:var(--muted); font-size:.84rem; line-height:1.5; }
+    .ai-status-box strong { color:var(--text); }
+    .ai-error { color:#ffd1d1; }
+
+    .profile-layout { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .profile-card { padding:17px; border:1px solid var(--line); border-radius:18px; background:rgba(255,255,255,.04); }
+    .profile-card h2 { margin:0 0 12px; font-size:1rem; }
+    .profile-field { display:block; margin-top:11px; color:var(--muted); font-size:.8rem; }
+    .profile-field input, .profile-field select, .profile-field textarea { width:100%; margin-top:6px; padding:11px 12px; border:1px solid var(--line); border-radius:11px; background:rgba(0,0,0,.18); color:var(--text); resize:vertical; }
+    .privacy-note { margin-top:10px; color:var(--muted); font-size:.76rem; line-height:1.45; }
+
+    .onboarding-modal, .ai-report-modal { position:fixed; inset:0; z-index:100; display:none; align-items:center; justify-content:center; padding:14px; background:rgba(3,7,13,.84); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); }
+    .onboarding-modal.open, .ai-report-modal.open { display:flex; }
+    .onboarding-card { width:min(520px,100%); padding:25px; border:1px solid var(--line); border-radius:26px; background:linear-gradient(155deg,#17243a,#0c1423); box-shadow:0 35px 100px rgba(0,0,0,.55); }
+    .onboarding-mark { width:52px; height:52px; border-radius:17px; display:grid; place-items:center; background:linear-gradient(145deg,var(--mint),var(--accent)); color:#07111d; font-weight:950; font-size:1.25rem; }
+    .onboarding-card h2 { margin:20px 0 8px; font-size:2rem; letter-spacing:-.045em; }
+    .onboarding-card p { margin:0 0 14px; color:var(--muted); line-height:1.55; }
+    .onboarding-card input { width:100%; padding:13px 14px; border:1px solid var(--line); border-radius:13px; background:rgba(0,0,0,.20); color:var(--text); font-size:1.05rem; }
+
+    .ai-report-shell { width:min(920px,100%); max-height:min(92vh,900px); overflow:auto; padding:18px; border:1px solid var(--line); border-radius:25px; background:linear-gradient(155deg,#152239,#0b1321); box-shadow:0 36px 100px rgba(0,0,0,.58); }
+    .ai-report-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+    .ai-report-top h2 { margin:9px 0 5px; font-size:clamp(1.45rem,4vw,2.3rem); letter-spacing:-.04em; }
+    .ai-report-top p { margin:0; color:var(--muted); line-height:1.5; }
+    .ai-report-close { width:40px; height:40px; flex:0 0 auto; border:1px solid var(--line); border-radius:50%; background:rgba(255,255,255,.06); color:var(--text); font-size:1.2rem; }
+    .loading-pulse { display:inline-block; width:8px; height:8px; margin-right:7px; border-radius:50%; background:var(--purple); animation:pulse 1s ease-in-out infinite alternate; }
+    @keyframes pulse { to { opacity:.25; transform:scale(.75); } }
+
+    @media (max-width: 800px) {
+      .analysis-kpis { grid-template-columns:1fr 1fr; }
+      .profile-layout { grid-template-columns:1fr; }
+    }
+    @media (max-width: 620px) {
+      .app-nav-button { padding:9px 11px; font-size:.79rem; }
+      .personal-hero { padding:20px 16px; }
+      .personal-hero h2 { font-size:2.35rem; }
+      .story-rail { grid-auto-columns:91%; }
+      .story-card { min-height:315px; padding:17px; }
+      .ai-rec-top { grid-template-columns:1fr; }
+      .ai-change { justify-self:start; }
+    }
+
+
+    /* ===== v8: Sounds ===== */
+    .sounds-section { margin-top:16px; display:grid; gap:12px; }
+    .sound-card { display:grid; grid-template-columns:140px minmax(0,1fr); gap:20px; padding:20px; border:1px solid var(--line); border-radius:24px; background:linear-gradient(145deg,rgba(255,255,255,.065),rgba(255,255,255,.025)); box-shadow:var(--shadow); }
+    .sound-art { aspect-ratio:1; border-radius:22px; display:grid; place-items:center; overflow:hidden; background:radial-gradient(circle at 32% 28%,rgba(199,167,255,.55),transparent 30%), radial-gradient(circle at 68% 72%,rgba(135,229,189,.38),transparent 33%), linear-gradient(145deg,#18233d,#09111e); border:1px solid rgba(255,255,255,.12); }
+    .sound-art span { font-size:4.6rem; font-weight:300; color:#e8ddff; transform:rotate(-12deg); text-shadow:0 12px 35px rgba(199,167,255,.45); }
+    .sound-main h2 { margin:5px 0 8px; font-size:clamp(1.5rem,4vw,2.25rem); letter-spacing:-.04em; }
+    .sound-main p { margin:0; color:var(--muted); line-height:1.55; }
+    .sound-meta { color:var(--mint); font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.09em; }
+    .sound-tags { display:flex; gap:7px; flex-wrap:wrap; margin-top:13px; }
+    .sound-tags span { padding:6px 9px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.04); color:var(--muted); font-size:.76rem; }
+    .sound-player-shell { margin-top:16px; padding:13px; border:1px solid var(--line); border-radius:16px; background:rgba(0,0,0,.17); }
+    .sound-player-shell audio { width:100%; display:block; min-height:44px; }
+    .sound-status { margin-top:8px; color:var(--muted); font-size:.78rem; line-height:1.4; }
+    .sound-status.success { color:#bff1dd; }
+    .sound-status.error { color:#ffd0d0; }
+    .sound-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .sound-link { display:inline-flex; align-items:center; justify-content:center; text-decoration:none; }
+    .sound-timer { margin-top:14px; padding:14px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.035); }
+    .sound-timer-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+    .sound-timer-title { font-size:.92rem; font-weight:850; }
+    .sound-timer-note { margin-top:3px; color:var(--muted); font-size:.76rem; line-height:1.4; }
+    .sound-timer-clock { min-width:86px; text-align:right; font-variant-numeric:tabular-nums; font-size:1.35rem; font-weight:900; letter-spacing:-.03em; }
+    .sound-timer-clock.fading { color:var(--warm); }
+    .sound-timer-presets { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
+    .sound-timer-chip { min-height:38px; padding:8px 11px; border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.04); color:var(--muted); font-weight:800; }
+    .sound-timer-chip.active { color:#06130f; background:var(--mint); border-color:transparent; }
+    .sound-timer-custom { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; align-items:end; margin-top:10px; }
+    .sound-timer-custom label { display:grid; gap:5px; color:var(--muted); font-size:.76rem; font-weight:750; }
+    .sound-timer-custom input { width:100%; min-height:42px; padding:9px 11px; border-radius:12px; border:1px solid var(--line); background:rgba(0,0,0,.18); color:var(--text); }
+    .sound-timer-progress { height:5px; margin-top:12px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.08); }
+    .sound-timer-progress > span { display:block; width:0%; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--mint),var(--purple)); transform-origin:left center; transition:width .18s linear; }
+    .sound-timer-state { margin-top:8px; color:var(--muted); font-size:.76rem; line-height:1.4; }
+    .source-player-wrap { padding:16px; border:1px solid var(--line); border-radius:20px; background:rgba(255,255,255,.035); }
+    .source-player-wrap iframe { width:100%; min-height:560px; border:0; border-radius:15px; background:#fff; }
+    .single-profile { grid-template-columns:1fr 1fr; }
+    @media (max-width:700px) {
+      .sound-card { grid-template-columns:1fr; padding:16px; }
+      .sound-art { width:118px; }
+      .sound-timer-head { align-items:center; }
+      .sound-timer-custom { grid-template-columns:1fr 1fr; }
+      .sound-timer-custom label { grid-column:1 / -1; }
+      .source-player-wrap iframe { min-height:620px; }
+      .single-profile { grid-template-columns:1fr; }
+    }
+
+  </style>
+</head>
+<body data-phase="idle">
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">V</div>
+        <div>
+          <h1>Volmer</h1>
+          <p class="subtitle" id="personalHeaderSubtitle">Dein persönlicher Atembegleiter.</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <div class="status-pill" id="mediaBadge"><span class="status-dot"></span>Media-Keys: bereit</div>
+        <div class="status-pill" id="saveStatus">Lokal gespeichert</div>
+      </div>
+    </header>
+
+    <div class="app-nav-wrap">
+      <nav class="app-nav" aria-label="Hauptnavigation">
+        <button class="app-nav-button active" type="button" data-app-tab="meditateTab">Meditieren</button>
+        <button class="app-nav-button" type="button" data-app-tab="analysisTab">Verlauf</button>
+        <button class="app-nav-button" type="button" data-app-tab="soundsTab">Sounds</button>
+        <button class="app-nav-button" type="button" data-app-tab="profileTab">Profil</button>
+      </nav>
+    </div>
+
+    <main>
+      <section class="app-tab active" id="meditateTab">
+        <div class="personal-hero" style="margin-bottom:16px">
+          <div class="personal-kicker">Heute · dein aktueller Rhythmus</div>
+          <h2><span data-profile-name>Du</span>, dein Atemplan ist bereit.</h2>
+          <p>Starte deine Übung wie gewohnt. Deine Sitzungen werden lokal gespeichert, damit du deinen Verlauf später im Tab „Verlauf“ nachvollziehen kannst.</p>
+        </div>
+
+      <section class="card dashboard" aria-label="Atemtimer Dashboard">
+        <div class="dashboard-toolbar">
+          <div class="round-control" aria-label="Rundenzahl">
+            <span class="round-control-label">Runden</span>
+            <button class="stepper-button" id="cycleMinusBtn" type="button" aria-label="Eine Runde weniger">−</button>
+            <input class="round-input" id="cycles" type="number" min="1" max="20" step="1" value="4" aria-label="Anzahl Runden" />
+            <button class="stepper-button" id="cyclePlusBtn" type="button" aria-label="Eine Runde mehr">+</button>
+          </div>
+          <div class="profile-summary" id="profileSummary" aria-label="Aktuelle Konfiguration"></div>
+          <button class="icon-button" id="settingsJumpBtn" type="button">Einstellungen</button>
+        </div>
+
+        <div class="stage" aria-live="polite">
+          <div class="stage-main">
+            <div class="phase-kicker" id="phaseKicker">Status</div>
+            <div class="phase-name" id="phaseName">Bereit</div>
+
+            <div class="timer-ring" id="timerRing">
+              <div>
+                <div class="timer-value" id="timer">00:00</div>
+                <div class="phase-detail" id="phaseDetail">Start drücken, Audio erlauben und Kopfhörer testen.</div>
+              </div>
+            </div>
+
+            <div class="total-progress" aria-label="Gesamtfortschritt">
+              <div class="progress-labels">
+                <span id="totalDurationLabel">Gesamtdauer: 00:00</span>
+                <span id="totalRemainingLabel">Rest: 00:00</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" id="totalProgressFill"></div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="stage-side" aria-label="Sitzungsinformationen">
+            <div class="metric-grid">
+              <div class="metric"><strong id="cycleMetric">0/3</strong><span>Aktuelle Runde</span></div>
+              <div class="metric"><strong id="breathMetric">0/40</strong><span>Aktueller Atemzug</span></div>
+              <div class="metric wide"><strong id="roundPaceMetric">1,2 / 1,8 s</strong><span id="roundPaceLabel">Ein / Aus in Runde 1</span></div>
+            </div>
+
+            <div class="round-ramp">
+              <div class="round-ramp-title">Lineare Entwicklung</div>
+              <div class="ramp-row">
+                <div class="ramp-value"><small>Runde 1</small><strong id="firstRoundSummary">1,2 / 1,8 s · 100 s</strong></div>
+                <div class="ramp-arrow" aria-hidden="true">→</div>
+                <div class="ramp-value"><small>Letzte Runde</small><strong id="lastRoundSummary">1,2 / 1,8 s · 130 s</strong></div>
+              </div>
+            </div>
+
+            <div class="controls">
+              <button class="btn good wide" id="startBtn" type="button">Sitzung starten</button>
+              <button class="btn warn" id="pauseBtn" type="button" disabled>Pause</button>
+              <button class="btn secondary" id="addHoldBtn" type="button" disabled>+15 s Haltezeit</button>
+              <button class="btn secondary" id="skipBtn" type="button" disabled>Phase überspringen</button>
+              <button class="btn danger" id="stopBtn" type="button" disabled>Stop</button>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+
+      </section>
+
+      <section class="app-tab" id="analysisTab">
+        <div class="personal-hero">
+          <div class="personal-kicker"><span id="analysisWindowLabel">Dein Verlauf</span></div>
+          <h2 id="analysisHeroTitle"><span data-profile-name>Du</span>, so entwickeln sich deine Sitzungen.</h2>
+          <p id="analysisHeroText">Hier siehst du deine gespeicherten Atemsitzungen, tatsächlichen Haltezeiten, Pausen und absolvierte Runden.</p>
+          <div class="hero-actions">
+            <button class="btn secondary" id="jumpToChartBtn" type="button">Zum Verlauf</button>
+          </div>
+        </div>
+
+        <section class="analysis-section">
+          <div class="analysis-kpis" id="analysisKpis"></div>
+        </section>
+
+        <section class="analysis-section" id="historySection">
+          <div class="analysis-head"><div><h2>Deine Entwicklung</h2><p id="chartContext">Tatsächliche Haltezeit der jeweils spätesten erreichten Runde.</p></div></div>
+          <div class="analysis-panel"><div class="analysis-panel-pad">
+            <div class="metric-tabs">
+              <button class="metric-tab active" type="button" data-history-metric="hold">Haltezeit</button>
+              <button class="metric-tab" type="button" data-history-metric="pause">Zusatzpause</button>
+              <button class="metric-tab" type="button" data-history-metric="rounds">Runden</button>
+              <button class="metric-tab" type="button" data-history-metric="duration">Dauer</button>
+              <button class="metric-tab" type="button" data-history-metric="pace">Atemtempo</button>
+              <button class="metric-tab" type="button" data-history-metric="recovery">Erholung</button>
+            </div>
+            <div class="range-tabs" aria-label="Zeitraum">
+              <button class="range-tab" type="button" data-history-range="10">10</button>
+              <button class="range-tab active" type="button" data-history-range="30">30</button>
+              <button class="range-tab" type="button" data-history-range="all">Alle</button>
+            </div>
+            <div class="chart-box"><svg id="historyChart" viewBox="0 0 760 250" role="img" aria-label="Verlauf deiner Atemsitzungen"></svg><div class="chart-empty" id="chartEmpty" hidden>Noch keine auswertbaren Sitzungen vorhanden.</div></div>
+            <div class="chart-caption" id="chartCaption">Jeder Punkt entspricht einer gespeicherten, auswertbaren Sitzung. Bewusst früher beendete Sitzungen bleiben sichtbar.</div>
+          </div></div>
+        </section>
+
+        <section class="analysis-section" id="sessionsSection">
+          <div class="analysis-head"><div><h2>Sitzungen</h2><p>Öffne eine Session, um Runden, Haltezeiten und zusätzliche Pausen nachzuvollziehen.</p></div></div>
+          <div class="session-list" id="sessionHistoryList"></div>
+          <button class="btn secondary compact" id="sessionHistoryMoreBtn" type="button" style="margin-top:10px; display:none">Weitere Sitzungen anzeigen</button>
+        </section>
+
+        <!-- Legacy AI hooks stay hidden so older locally stored reports cannot break the app. -->
+        <div hidden aria-hidden="true">
+          <button id="generateAiBtn" type="button"></button>
+          <div id="aiStatusBox"></div><div id="storyRail"></div><div id="storyDots"></div>
+          <div id="aiRecommendations"></div><div id="reportArchive"></div>
+        </div>
+      </section>
+
+      <section class="app-tab" id="soundsTab">
+        <div class="personal-hero sounds-hero">
+          <div class="personal-kicker">Meditationssounds · optional zur Atemsession</div>
+          <h2>Finde einen ruhigen Klang für deine Session.</h2>
+          <p>Sounds laufen unabhängig vom Atemtimer. Bei binauralen Aufnahmen sind Kopfhörer sinnvoll. Du kannst anschließend zurück zu „Meditieren“ wechseln und den Sound weiterlaufen lassen, sofern dein Browser die Wiedergabe im Hintergrund zulässt.</p>
+        </div>
+
+        <section class="sounds-section">
+          <article class="sound-card featured-sound">
+            <div class="sound-art" aria-hidden="true"><span>≈</span></div>
+            <div class="sound-main">
+              <div class="sound-meta">Nature's Frequency FM · Binaural ASMR</div>
+              <h2>Theta Meditation</h2>
+              <p>Die originale MP3-Datei ist jetzt direkt in den Player eingebunden. Es ist kein RSS-Feed oder eingebetteter Fremdplayer mehr nötig. Für den binauralen Effekt sind Kopfhörer sinnvoll.</p>
+              <div class="sound-tags"><span>4,8 Hz Delta</span><span>396 Hz</span><span>Binaural</span><span>1:11:11</span><span>Kopfhörer empfohlen</span></div>
+
+              <div class="sound-player-shell">
+                <audio id="meditationAudio" controls preload="metadata" playsinline crossorigin="anonymous"></audio>
+                <div class="sound-status success" id="soundStatus">Original-Audiodatei direkt eingebunden · bereit zum Abspielen.</div>
+
+                <div class="sound-timer" aria-label="Sound-Timer">
+                  <div class="sound-timer-head">
+                    <div>
+                      <div class="sound-timer-title">Sound-Timer</div>
+                      <div class="sound-timer-note">Stoppt den Sound nach der gewählten Hörzeit. Die letzten 15 Sekunden werden sanft ausgeblendet.</div>
+                    </div>
+                    <div class="sound-timer-clock" id="soundTimerClock">—:—</div>
+                  </div>
+                  <div class="sound-timer-presets" id="soundTimerPresets">
+                    <button class="sound-timer-chip" type="button" data-sound-minutes="5">5 Min.</button>
+                    <button class="sound-timer-chip" type="button" data-sound-minutes="10">10 Min.</button>
+                    <button class="sound-timer-chip" type="button" data-sound-minutes="15">15 Min.</button>
+                    <button class="sound-timer-chip" type="button" data-sound-minutes="20">20 Min.</button>
+                    <button class="sound-timer-chip" type="button" data-sound-minutes="30">30 Min.</button>
+                    <button class="sound-timer-chip" type="button" data-sound-minutes="45">45 Min.</button>
+                    <button class="sound-timer-chip" type="button" data-sound-minutes="60">60 Min.</button>
+                  </div>
+                  <div class="sound-timer-custom">
+                    <label>Eigene Dauer in Minuten
+                      <input id="soundTimerCustomMinutes" type="number" min="1" max="180" step="1" inputmode="numeric" placeholder="z. B. 25" />
+                    </label>
+                    <button class="btn good compact" id="soundTimerStartBtn" type="button">Timer starten</button>
+                    <button class="btn secondary compact" id="soundTimerCancelBtn" type="button">Timer aus</button>
+                  </div>
+                  <div class="sound-timer-progress" aria-hidden="true"><span id="soundTimerProgress"></span></div>
+                  <div class="sound-timer-state" id="soundTimerState">Kein Timer aktiv.</div>
+                </div>
+              </div>
+
+              <div class="sound-actions">
+                <button class="btn good compact" id="resolveSoundBtn" type="button">Originalsound laden</button>
+                <a class="btn secondary compact sound-link" id="downloadSoundFileLink" target="_blank" rel="noopener noreferrer">MP3 öffnen / herunterladen</a>
+                <a class="btn secondary compact sound-link" id="openSoundSourceLink" target="_blank" rel="noopener noreferrer">Quellseite</a>
+              </div>
+            </div>
+          </article>
+        </section>
+      </section>
+
+      <section class="app-tab" id="profileTab">
+        <div class="personal-hero" style="margin-bottom:16px">
+          <div class="personal-kicker">Profil & Einstellungen</div>
+          <h2>Dein Atemplan, deine Einstellungen.</h2>
+          <p>Hier verwaltest du deinen Namen, Atemplan sowie Audio- und Hintergrundoptionen.</p>
+        </div>
+        <div class="profile-layout single-profile" style="margin-bottom:16px">
+          <section class="profile-card">
+            <h2>Profil</h2>
+            <label class="profile-field">Name<input id="userNameInput" type="text" autocomplete="given-name" placeholder="Dein Name" /></label>
+            <button class="btn good compact" id="saveProfileBtn" type="button" style="margin-top:11px">Name speichern</button>
+          </section>
+          <section class="profile-card profile-summary-card">
+            <h2>Lokaler Verlauf</h2>
+            <p class="section-hint">Deine Atemsitzungen bleiben lokal im Browser gespeichert und können im Tab „Verlauf“ angesehen werden.</p>
+            <button class="btn secondary compact" type="button" data-app-tab="analysisTab">Verlauf öffnen</button>
+          </section>
+        </div>
+        <div hidden aria-hidden="true">
+          <select id="aiToneSelect"><option value="personal">Persönlich</option></select>
+          <textarea id="userGoalInput"></textarea>
+          <input id="aiEnabledInput" type="checkbox" />
+          <input id="aiEndpointInput" type="url" />
+          <button id="testAiBtn" type="button"></button>
+          <div id="aiConnectionStatus"></div>
+        </div>
+
+      <details class="card settings-panel" id="settingsPanel">
+        <summary>
+          <div class="settings-title">
+            <div class="settings-icon" aria-hidden="true">⚙</div>
+            <div>
+              <strong>Einstellungen bearbeiten</strong>
+              <small>Einmal konfigurieren, anschließend bleibt das Dashboard im Fokus.</small>
+            </div>
+          </div>
+          <span class="chevron" aria-hidden="true">⌄</span>
+        </summary>
+
+        <div class="settings-content">
+          <div class="settings-grid">
+            <section class="settings-section span-2">
+              <h2 class="section-heading">Lineare Entwicklung von Runde 1 bis zur letzten Runde</h2>
+              <p class="section-hint">Die Zwischenwerte werden automatisch gleichmäßig berechnet. Gleiche Start- und Endwerte ergeben einen konstanten Ablauf.</p>
+
+              <div class="ramp-table">
+                <div class="ramp-head">Wert</div>
+                <div class="ramp-head">Runde 1</div>
+                <div class="ramp-head">Letzte Runde</div>
+
+                <div class="ramp-label">Einatmen <small>Sekunden pro Atemzug</small></div>
+                <input id="inhaleFirstSec" type="number" min="0.3" max="20" step="0.1" value="1.2" aria-label="Einatmen Runde 1 in Sekunden" />
+                <input id="inhaleLastSec" type="number" min="0.3" max="20" step="0.1" value="1.1" aria-label="Einatmen letzte Runde in Sekunden" />
+
+                <div class="ramp-label">Ausatmen <small>Sekunden pro Atemzug</small></div>
+                <input id="exhaleFirstSec" type="number" min="0.3" max="20" step="0.1" value="1.8" aria-label="Ausatmen Runde 1 in Sekunden" />
+                <input id="exhaleLastSec" type="number" min="0.3" max="20" step="0.1" value="1.7" aria-label="Ausatmen letzte Runde in Sekunden" />
+
+                <div class="ramp-label">Ausatem-Haltezeit <small>Atempause in Sekunden</small></div>
+                <input id="holdExhaleFirstSec" type="number" min="0" max="900" step="1" value="110" aria-label="Ausatem-Haltezeit Runde 1 in Sekunden" />
+                <input id="holdExhaleLastSec" type="number" min="0" max="900" step="1" value="125" aria-label="Ausatem-Haltezeit letzte Runde in Sekunden" />
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <h2 class="section-heading">Ablauf</h2>
+              <p class="section-hint">Die Rundenzahl lässt sich jederzeit direkt oben im Dashboard ändern. Zwischen zwei Runden sind Erholungspause und Countdown bewusst getrennt: zuerst die frei wählbare Pause, danach immer derselbe feste 5→1-Countdown.</p>
+              <div class="form-grid">
+                <label class="field">Atemzüge je Runde
+                  <input id="breaths" type="number" min="1" max="200" step="1" value="40" />
+                </label>
+                <label class="field">Vorbereitungszeit (s)
+                  <input id="prepareSec" type="number" min="0" max="60" step="1" value="5" />
+                </label>
+                <label class="field">Zählansage alle n Atemzüge
+                  <input id="countEvery" type="number" min="1" max="50" step="1" value="20" />
+                </label>
+                <label class="field">Optionale Pause vor dem Countdown (s)
+                  <input id="nextRoundPauseSec" type="number" min="0" max="60" step="1" value="0" />
+                </label>
+                <label class="field">Countdown vor nächster Runde (fix)
+                  <input id="nextRoundCountdownSec" type="number" min="5" max="5" step="1" value="5" readonly aria-readonly="true" title="Immer 5 → 4 → 3 → 2 → 1" />
+                </label>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <h2 class="section-heading">Erholungsatem</h2>
+              <p class="section-hint">Diese Werte bleiben in jeder Runde gleich.</p>
+              <div class="form-grid">
+                <label class="field">Erholungs-Einatmen (s)
+                  <input id="recoveryInhaleSec" type="number" min="0.5" max="30" step="0.5" value="2" />
+                </label>
+                <label class="field">Erholungs-Halten (s)
+                  <input id="recoveryHoldSec" type="number" min="0" max="120" step="1" value="15" />
+                </label>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <h2 class="section-heading">Ton und Steuerung</h2>
+              <p class="section-hint">Einatmen = immer hoher Einzelton · Ausatmen = immer tiefer Einzelton · Halten = immer ein längerer Mittelton · Countdown = immer exakt fünf identische kurze Töne (5→1), auch vor Runde 1 und vor einer neuen Runde. Mehrfach-Tonfolgen außerhalb eines Countdowns werden nicht verwendet.</p>
+              <div class="switches">
+                <label class="switch"><span>Pieptöne aktivieren</span><input id="beeps" type="checkbox" checked /></label>
+                <label class="switch"><span>Kurze Sprachansagen aktivieren</span><input id="voice" type="checkbox" /></label>
+                <label class="switch"><span>Pause verlängert die Ausatem-Haltezeit</span><input id="pauseExtendsHold" type="checkbox" checked /></label>
+                <label class="switch"><span>Bildschirm wach halten, wenn möglich</span><input id="wakeLockEnabled" type="checkbox" checked /></label>
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <h2 class="section-heading">Eigene Standardwerte</h2>
+              <p class="section-hint">Aktuelle Einstellungen können den bisherigen Standard dauerhaft ersetzen.</p>
+              <div class="preset-box">
+                <div class="preset-chips" id="presetChips"></div>
+                <div class="preset-actions">
+                  <button class="btn good compact" id="saveDefaultsBtn" type="button">Aktuelle Werte als Standard</button>
+                  <button class="btn secondary compact" id="applyDefaultsBtn" type="button">Standard laden</button>
+                  <button class="btn secondary compact full" id="factoryDefaultsBtn" type="button">Werkseinstellungen wiederherstellen</button>
+                </div>
+              </div>
+            </section>
+            <div hidden aria-hidden="true">
+              <div id="adaptiveStatus"></div>
+              <button id="resetLearningBtn" type="button"></button>
+              <button id="acceptSuggestionBtn" type="button"></button>
+              <button id="rejectSuggestionBtn" type="button"></button>
+            </div>
+
+            <section class="settings-section">
+              <h2 class="section-heading">Hintergrundbetrieb</h2>
+              <p class="section-hint">Im Vordergrund rendert die App flüssig mit der Bildschirmrate. Zusätzlich hält eine Hintergrund-Uhr mit realen Zeitstempeln die Sitzung bei Sperrbildschirm und Safari-Unterbrechungen synchron.</p>
+              <div class="notice" style="margin-top:14px">Auf iPhone/Safari ist Hintergrundausführung durch iOS begrenzt. Die App holt verstrichene Zeit beim Zurückkehren nach und versucht, Audio- und Headset-Steuerung aktiv zu halten.</div>
+            </section>
+
+            <section class="settings-section span-2">
+              <div class="notice">
+                Nicht beim Autofahren, im Wasser oder in riskanten Situationen verwenden. Bei Schwindel, Kribbeln, Unwohlsein oder Schmerzen sofort abbrechen und normal weiteratmen.
+              </div>
+              <div class="log" id="log" aria-label="Protokoll"></div>
+            </section>
+          </div>
+        </div>
+      </details>
+      </section>
+    </main>
+
+    <footer>
+      Einstellungen, Sitzungsverlauf und eigene Standardwerte werden lokal in diesem Browser gespeichert. Der Sounds-Tab nutzt externe Audioquellen. Media-Tasten und Sperrbildschirm-Steuerung hängen von Betriebssystem und Browser ab. · Build 2026.09.20-v8.5-standard-audio-persistence
+    </footer>
+  </div>
+
+
+  <div class="session-detail-modal" id="sessionDetailModal" role="dialog" aria-modal="true" aria-labelledby="sessionDetailTitle">
+    <div class="session-detail-shell">
+      <div class="session-detail-top">
+        <div><div class="personal-kicker" id="sessionDetailDate">Sitzung</div><h2 id="sessionDetailTitle">Sitzungsdetails</h2></div>
+        <button class="session-detail-close" id="sessionDetailCloseBtn" type="button" aria-label="Schließen">×</button>
+      </div>
+      <div class="session-detail-kpis" id="sessionDetailKpis"></div>
+      <div class="round-detail-list" id="sessionRoundDetails"></div>
+    </div>
+  </div>
+
+
+  <div class="onboarding-modal" id="onboardingModal" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+    <div class="onboarding-card">
+      <div class="onboarding-mark">V</div>
+      <div class="personal-kicker" style="margin-top:18px">Dein persönlicher Atembegleiter</div>
+      <h2 id="onboardingTitle">Wie dürfen wir dich nennen?</h2>
+      <p>Dein Name wird für die persönliche Ansprache in der App verwendet und lokal auf diesem Gerät gespeichert.</p>
+      <input id="onboardingNameInput" type="text" autocomplete="given-name" placeholder="z. B. Lucca" value="Lucca" />
+      <button class="btn good" id="onboardingContinueBtn" type="button" disabled style="width:100%; margin-top:11px">Weiter</button>
+      <div class="privacy-note">Kein Konto notwendig · später jederzeit unter Profil änderbar</div>
+    </div>
+  </div>
+
+  <div hidden aria-hidden="true">
+    <div id="aiReportModal"><div id="aiReportTitle"></div><div id="aiReportSummary"></div><button id="aiReportCloseBtn" type="button"></button><div id="aiModalStoryRail"></div><div id="aiModalStoryDots"></div><div id="aiModalRecommendations"></div><button id="openAnalysisFromModalBtn" type="button"></button></div>
+    <div id="adaptiveModal"><div id="adaptiveTitle"></div><div id="adaptiveIntro"></div><div id="adaptiveChanges"></div><div id="adaptiveEvidence"></div></div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  // Einheitliche akustische Sprache: jede Bedeutung hat immer dasselbe Signal.
+  // Countdown = immer exakt 5 Schritte, identische Tonhöhe und Tonlänge.
+  const STANDARD_COUNTDOWN_SEC = 5;
+  const AUDIO_CUES = Object.freeze({
+    inhale:    { frequency: 780, duration: .09, volume: .060 },
+    exhale:    { frequency: 420, duration: .09, volume: .060 },
+    hold:      { frequency: 610, duration: .22, volume: .060 },
+    countdown: { frequency: 980, duration: .09, volume: .055 },
+    complete:  { frequency: 560, duration: .38, volume: .065 },
+    action:    { frequency: 620, duration: .06, volume: .045 }
+  });
+
+  // Persönliche Standardwerte für Luccas Atemroutine. Änderungen werden danach weiterhin lokal gespeichert.
+  const FACTORY_DEFAULTS = Object.freeze({
+    cycles: 4,
+    breaths: 40,
+    inhaleFirstSec: 1.2,
+    inhaleLastSec: 1.1,
+    exhaleFirstSec: 1.8,
+    exhaleLastSec: 1.7,
+    holdExhaleFirstSec: 110,
+    holdExhaleLastSec: 125,
+    recoveryInhaleSec: 2,
+    recoveryHoldSec: 15,
+    nextRoundPauseSec: 0,
+    nextRoundCountdownSec: STANDARD_COUNTDOWN_SEC,
+    prepareSec: 5,
+    countEvery: 20,
+    beeps: true,
+    voice: false,
+    pauseExtendsHold: true,
+    wakeLockEnabled: true
+  });
+
+  // WICHTIG: Diese beiden Keys sind absichtlich versionsunabhängig.
+  // Bei zukünftigen HTML-Updates NICHT umbenennen, damit Einstellungen beim GitHub-Push erhalten bleiben.
+  const SETTINGS_KEY = "volmer-settings-stable-v1";
+  const DEFAULTS_KEY = "volmer-user-defaults-stable-v1";
+  const LEGACY_SETTINGS_KEYS = [
+    "volmer-briefing-settings-v5-lucca",
+    "volmer-briefing-settings-v4",
+    "volmer-briefing-settings-v3"
+  ];
+  const LEGACY_DEFAULTS_KEYS = [
+    "volmer-briefing-user-defaults-v2-lucca",
+    "volmer-briefing-user-defaults-v1"
+  ];
+  const HISTORY_KEY = "volmer-briefing-session-history-v1";
+  const ADAPTIVE_STATE_KEY = "volmer-briefing-adaptive-state-v2";
+  const LEGACY_ADAPTIVE_STATE_KEY = "volmer-briefing-adaptive-state-v1";
+  const ADAPTIVE_WINDOW = 10;
+  const MAX_HISTORY_RECORDS = 600;
+  const APP_VERSION = "2026.09.20-v8.5-standard-audio-persistence";
+
+  const ids = [
+    "cycles", "breaths",
+    "inhaleFirstSec", "inhaleLastSec", "exhaleFirstSec", "exhaleLastSec",
+    "holdExhaleFirstSec", "holdExhaleLastSec",
+    "recoveryInhaleSec", "recoveryHoldSec", "nextRoundPauseSec", "nextRoundCountdownSec", "prepareSec", "countEvery",
+    "beeps", "voice", "pauseExtendsHold", "wakeLockEnabled"
+  ];
+
+  const timingIds = [
+    "cycles", "breaths", "inhaleFirstSec", "inhaleLastSec", "exhaleFirstSec", "exhaleLastSec",
+    "holdExhaleFirstSec", "holdExhaleLastSec", "recoveryInhaleSec", "recoveryHoldSec",
+    "nextRoundPauseSec", "nextRoundCountdownSec", "prepareSec", "countEvery"
+  ];
+
+  const extraIds = [
+    "phaseKicker", "phaseName", "phaseDetail", "timer", "timerRing",
+    "totalDurationLabel", "totalRemainingLabel", "totalProgressFill",
+    "cycleMetric", "breathMetric", "roundPaceMetric", "roundPaceLabel",
+    "firstRoundSummary", "lastRoundSummary", "profileSummary",
+    "startBtn", "pauseBtn", "addHoldBtn", "skipBtn", "stopBtn",
+    "cycleMinusBtn", "cyclePlusBtn", "settingsJumpBtn", "settingsPanel",
+    "applyDefaultsBtn", "saveDefaultsBtn", "factoryDefaultsBtn", "presetChips",
+    "log", "mediaBadge", "saveStatus",
+    "adaptiveStatus", "resetLearningBtn", "adaptiveModal", "adaptiveTitle", "adaptiveIntro",
+    "adaptiveChanges", "adaptiveEvidence", "acceptSuggestionBtn", "rejectSuggestionBtn"
+  ];
+
+  const el = Object.fromEntries([...ids, ...extraIds].map(id => [id, document.getElementById(id)]));
+
+  let settings = loadSettings();
+  let userDefaults = loadUserDefaults();
+  let audioCtx = null;
+  let silentAudio = null;
+  let wakeLock = null;
+  let clockTimerId = 0;
+  let uiRafId = 0;
+  let saveStatusTimer = 0;
+  let isCatchingUp = false;
+  let history = loadHistory();
+  let adaptiveState = loadAdaptiveState();
+  let pendingSuggestion = null;
+  let session = freshSession();
+
+  function freshSession() {
+    return {
+      active: false,
+      paused: false,
+      phase: "idle",
+      phaseLabel: "Bereit",
+      phaseDetail: "Start drücken, Audio erlauben und Kopfhörer testen.",
+      cycle: 0,
+      breath: 0,
+      roundsCompleted: 0,
+      durationSec: 0,
+      remainingSec: 0,
+      totalDurationSec: 0,
+      holdCountdownSpoken: new Set(),
+      phaseCountdownSpoken: new Set(),
+      phaseStartedAtEpoch: 0,
+      phaseEndsAtEpoch: 0,
+      pauseStartedAtEpoch: 0,
+      pausePhase: "",
+      pauseFreezesCurrentPhase: true,
+      lastFinishReason: "timer",
+      onComplete: null,
+      config: null,
+      startedAtEpoch: 0,
+      telemetry: {
+        holdCycles: {},
+        phaseVisits: {},
+        phaseSkips: {},
+        phaseSkipRemainingSec: {},
+        phasePauseCounts: {},
+        phasePauseDurations: {},
+        phaseByCycle: {},
+        breathsCompleted: {},
+        recoveryHoldAddedSec: 0,
+        recoveryHoldSkippedRemainingSec: 0,
+        backgroundCatchups: 0
+      }
+    };
+  }
+
+  function safeParse(raw) {
+    try { return JSON.parse(raw || "{}"); }
+    catch (_) { return {}; }
+  }
+
+  function loadHistory() {
+    const saved = safeParse(localStorage.getItem(HISTORY_KEY));
+    return Array.isArray(saved) ? saved.slice(-MAX_HISTORY_RECORDS) : [];
+  }
+
+  function loadAdaptiveState() {
+    const current = safeParse(localStorage.getItem(ADAPTIVE_STATE_KEY));
+    const legacy = safeParse(localStorage.getItem(LEGACY_ADAPTIVE_STATE_KEY));
+    const saved = Object.keys(current).length ? current : legacy;
+    const totalQualifying = clampInt(saved.totalQualifying ?? saved.totalCompleted ?? 0, 0, 1000000);
+    const lastReviewedQualifying = clampInt(saved.lastReviewedQualifying ?? saved.lastReviewedCompleted ?? 0, 0, 1000000);
+    return { totalQualifying, lastReviewedQualifying };
+  }
+
+  function saveAdaptiveState() {
+    localStorage.setItem(ADAPTIVE_STATE_KEY, JSON.stringify(adaptiveState));
+    renderAdaptiveStatus();
+  }
+
+  function migrateLegacy(saved) {
+    const cycles = clampInt(saved.cycles ?? FACTORY_DEFAULTS.cycles, 1, 20);
+    const holdFirst = clampNumber(saved.holdExhaleSec ?? FACTORY_DEFAULTS.holdExhaleFirstSec, 0, 900);
+    const holdIncrement = clampNumber(saved.holdIncrementSec ?? 15, 0, 300);
+    return normalizeSettings({
+      ...FACTORY_DEFAULTS,
+      cycles,
+      breaths: saved.breaths ?? FACTORY_DEFAULTS.breaths,
+      inhaleFirstSec: saved.inhaleSec ?? FACTORY_DEFAULTS.inhaleFirstSec,
+      inhaleLastSec: saved.inhaleSec ?? FACTORY_DEFAULTS.inhaleLastSec,
+      exhaleFirstSec: saved.exhaleSec ?? FACTORY_DEFAULTS.exhaleFirstSec,
+      exhaleLastSec: saved.exhaleSec ?? FACTORY_DEFAULTS.exhaleLastSec,
+      holdExhaleFirstSec: holdFirst,
+      holdExhaleLastSec: holdFirst + Math.max(0, cycles - 1) * holdIncrement,
+      recoveryInhaleSec: saved.recoveryInhaleSec ?? FACTORY_DEFAULTS.recoveryInhaleSec,
+      recoveryHoldSec: saved.recoveryHoldSec ?? FACTORY_DEFAULTS.recoveryHoldSec,
+      nextRoundPauseSec: saved.nextRoundPauseSec ?? FACTORY_DEFAULTS.nextRoundPauseSec,
+      prepareSec: saved.prepareSec ?? FACTORY_DEFAULTS.prepareSec,
+      countEvery: saved.countEvery ?? FACTORY_DEFAULTS.countEvery,
+      beeps: saved.beeps ?? FACTORY_DEFAULTS.beeps,
+      voice: saved.voice ?? FACTORY_DEFAULTS.voice,
+      pauseExtendsHold: saved.pauseExtendsHold ?? FACTORY_DEFAULTS.pauseExtendsHold,
+      wakeLockEnabled: saved.wakeLockEnabled ?? FACTORY_DEFAULTS.wakeLockEnabled
+    });
+  }
+
+  function firstStoredObject(keys) {
+    for (const key of keys) {
+      const parsed = safeParse(localStorage.getItem(key));
+      if (Object.keys(parsed).length) return parsed;
+    }
+    return {};
+  }
+
+  function loadSettings() {
+    const current = safeParse(localStorage.getItem(SETTINGS_KEY));
+    if (Object.keys(current).length) return normalizeSettings({ ...FACTORY_DEFAULTS, ...current });
+
+    // Einmalige Migration aus bisherigen Builds. Danach bleibt der stabile Key erhalten.
+    const legacy = firstStoredObject(LEGACY_SETTINGS_KEYS);
+    const initial = Object.keys(legacy).length
+      ? normalizeSettings({ ...FACTORY_DEFAULTS, ...legacy })
+      : { ...FACTORY_DEFAULTS };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(initial));
+    return initial;
+  }
+
+  function loadUserDefaults() {
+    const current = safeParse(localStorage.getItem(DEFAULTS_KEY));
+    if (Object.keys(current).length) return normalizeSettings({ ...FACTORY_DEFAULTS, ...current });
+    const legacy = firstStoredObject(LEGACY_DEFAULTS_KEYS);
+    const initial = Object.keys(legacy).length
+      ? normalizeSettings({ ...FACTORY_DEFAULTS, ...legacy })
+      : { ...FACTORY_DEFAULTS };
+    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(initial));
+    return initial;
+  }
+
+  function normalizeSettings(value) {
+    return {
+      cycles: clampInt(value.cycles, 1, 20),
+      breaths: clampInt(value.breaths, 1, 200),
+      inhaleFirstSec: clampNumber(value.inhaleFirstSec, .3, 20),
+      inhaleLastSec: clampNumber(value.inhaleLastSec, .3, 20),
+      exhaleFirstSec: clampNumber(value.exhaleFirstSec, .3, 20),
+      exhaleLastSec: clampNumber(value.exhaleLastSec, .3, 20),
+      holdExhaleFirstSec: clampNumber(value.holdExhaleFirstSec, 0, 900),
+      holdExhaleLastSec: clampNumber(value.holdExhaleLastSec, 0, 900),
+      recoveryInhaleSec: clampNumber(value.recoveryInhaleSec, .5, 30),
+      recoveryHoldSec: clampNumber(value.recoveryHoldSec, 0, 120),
+      nextRoundPauseSec: clampNumber(value.nextRoundPauseSec, 0, 60),
+      nextRoundCountdownSec: STANDARD_COUNTDOWN_SEC,
+      prepareSec: clampNumber(value.prepareSec, 0, 60),
+      countEvery: clampInt(value.countEvery, 1, 50),
+      beeps: Boolean(value.beeps),
+      voice: Boolean(value.voice),
+      pauseExtendsHold: Boolean(value.pauseExtendsHold),
+      wakeLockEnabled: Boolean(value.wakeLockEnabled)
+    };
+  }
+
+  function clampInt(value, min, max) {
+    const n = Math.round(Number(value));
+    return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min));
+  }
+
+  function clampNumber(value, min, max) {
+    const n = Number(value);
+    return Math.max(min, Math.min(max, Number.isFinite(n) ? n : min));
+  }
+
+  function readSettings() {
+    const next = {};
+    for (const id of ids) {
+      const node = el[id];
+      next[id] = node.type === "checkbox" ? node.checked : Number(node.value);
+    }
+    return normalizeSettings(next);
+  }
+
+  function applySettingsToForm(value) {
+    const normalized = normalizeSettings(value);
+    for (const id of ids) {
+      const node = el[id];
+      if (node.type === "checkbox") node.checked = normalized[id];
+      else node.value = normalized[id];
+    }
+    settings = normalized;
+    renderAllConfiguration();
+  }
+
+  function saveSettings({ normalizeForm = false, announce = true } = {}) {
+    const next = readSettings();
+    settings = next;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+    if (normalizeForm) applySettingsToForm(next);
+    else renderAllConfiguration();
+    if (announce) flashSaveStatus("Gespeichert");
+  }
+
+  function flashSaveStatus(text) {
+    clearTimeout(saveStatusTimer);
+    el.saveStatus.textContent = text;
+    saveStatusTimer = window.setTimeout(() => { el.saveStatus.textContent = "Lokal gespeichert"; }, 1300);
+  }
+
+  function currentConfig() {
+    return session.config || settings;
+  }
+
+  function interpolate(first, last, cycle, cycles) {
+    if (cycles <= 1) return Number(first) || 0;
+    const ratio = Math.max(0, Math.min(1, (cycle - 1) / (cycles - 1)));
+    return Number(first) + (Number(last) - Number(first)) * ratio;
+  }
+
+  function valuesForCycle(cycle, config = currentConfig()) {
+    const safeCycle = Math.max(1, Math.min(config.cycles, Number(cycle) || 1));
+    return {
+      inhale: interpolate(config.inhaleFirstSec, config.inhaleLastSec, safeCycle, config.cycles),
+      exhale: interpolate(config.exhaleFirstSec, config.exhaleLastSec, safeCycle, config.cycles),
+      hold: interpolate(config.holdExhaleFirstSec, config.holdExhaleLastSec, safeCycle, config.cycles)
+    };
+  }
+
+  function formatNumber(value, digits = 1) {
+    const n = Number(value) || 0;
+    return n.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: digits });
+  }
+
+  function formatTime(sec) {
+    const whole = Math.max(0, Math.ceil(Number(sec) || 0));
+    const min = Math.floor(whole / 60);
+    const rem = whole % 60;
+    return `${String(min).padStart(2, "0")}:${String(rem).padStart(2, "0")}`;
+  }
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>\"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[char]));
+  }
+
+  function renderAllConfiguration() {
+    renderConfigurationSummary();
+    renderPresetChips();
+    renderAdaptiveStatus();
+    if (!session.active) render();
+  }
+
+  function renderConfigurationSummary() {
+    const s = settings;
+    const first = valuesForCycle(1, s);
+    const last = valuesForCycle(s.cycles, s);
+    const estimated = estimateTotalDuration(s);
+
+    const chips = [
+      `<span class="summary-chip"><strong>${s.breaths}</strong> Atemzüge</span>`,
+      `<span class="summary-chip">Tempo <strong>${formatNumber(first.inhale)}/${formatNumber(first.exhale)}</strong> → <strong>${formatNumber(last.inhale)}/${formatNumber(last.exhale)} s</strong></span>`,
+      `<span class="summary-chip">Atempause <strong>${formatNumber(first.hold, 0)}</strong> → <strong>${formatNumber(last.hold, 0)} s</strong></span>`,
+      `<span class="summary-chip">ca. <strong>${formatTime(estimated)}</strong></span>`
+    ];
+    el.profileSummary.innerHTML = chips.join("");
+    el.firstRoundSummary.textContent = `${formatNumber(first.inhale)} / ${formatNumber(first.exhale)} s · ${formatNumber(first.hold, 0)} s`;
+    el.lastRoundSummary.textContent = `${formatNumber(last.inhale)} / ${formatNumber(last.exhale)} s · ${formatNumber(last.hold, 0)} s`;
+  }
+
+  function renderPresetChips() {
+    const s = userDefaults;
+    const first = valuesForCycle(1, s);
+    const last = valuesForCycle(s.cycles, s);
+    const items = [
+      `${s.cycles} Runden`, `${s.breaths} Atemzüge`,
+      `${formatNumber(first.inhale)}/${formatNumber(first.exhale)} s Starttempo`,
+      `${formatNumber(last.inhale)}/${formatNumber(last.exhale)} s Endtempo`,
+      `${formatNumber(first.hold, 0)}→${formatNumber(last.hold, 0)} s Atempause`,
+      `${formatNumber(s.nextRoundPauseSec, 0)} s Rundenpause + ${formatNumber(s.nextRoundCountdownSec, 0)} s Countdown`
+    ];
+    el.presetChips.innerHTML = items.map(item => `<span class="preset-chip">${escapeHtml(item)}</span>`).join("");
+  }
+
+  function renderAdaptiveStatus() {
+    if (!el.adaptiveStatus) return;
+    const sinceReview = Math.max(0, adaptiveState.totalQualifying - adaptiveState.lastReviewedQualifying);
+    const progress = Math.min(ADAPTIVE_WINDOW, sinceReview);
+    const remaining = Math.max(0, ADAPTIVE_WINDOW - progress);
+    el.adaptiveStatus.innerHTML = remaining > 0
+      ? `<strong>${progress}/${ADAPTIVE_WINDOW}</strong> auswertbare Sitzungen bis zur nächsten Auswertung.<small>Vollständige Sitzungen zählen immer. Bewusst beendete Sitzungen zählen ebenfalls, wenn mindestens eine Runde oder ein sinnvoller Teil der Atemzüge absolviert wurde.</small>`
+      : `<strong>${ADAPTIVE_WINDOW}/${ADAPTIVE_WINDOW}</strong> Sitzungen erreicht.<small>Die Auswertung berücksichtigt nur Phasen, die in den Sitzungen tatsächlich vorkamen.</small>`;
+  }
+
+  function ensureHoldTelemetry(cycle) {
+    const key = String(cycle || 1);
+    if (!session.telemetry.holdCycles[key]) {
+      session.telemetry.holdCycles[key] = { addedSec: 0, pauseExtensionSec: 0, skippedRemainingSec: 0 };
+    }
+    return session.telemetry.holdCycles[key];
+  }
+
+  function ensurePhaseCycleTelemetry(cycle, phase) {
+    const cycleKey = String(Math.max(1, Number(cycle) || 1));
+    if (!session.telemetry.phaseByCycle[cycleKey]) session.telemetry.phaseByCycle[cycleKey] = {};
+    if (!session.telemetry.phaseByCycle[cycleKey][phase]) {
+      session.telemetry.phaseByCycle[cycleKey][phase] = {
+        visits: 0,
+        pauses: 0,
+        pauseSec: 0,
+        skips: 0,
+        skipRemainingSec: 0
+      };
+    }
+    return session.telemetry.phaseByCycle[cycleKey][phase];
+  }
+
+  function notePhaseVisit(phase) {
+    session.telemetry.phaseVisits[phase] = (session.telemetry.phaseVisits[phase] || 0) + 1;
+    ensurePhaseCycleTelemetry(session.cycle || 1, phase).visits += 1;
+  }
+
+  function notePhasePause(phase, seconds) {
+    const duration = Math.max(0, Number(seconds) || 0);
+    session.telemetry.phasePauseCounts[phase] = (session.telemetry.phasePauseCounts[phase] || 0) + 1;
+    session.telemetry.phasePauseDurations[phase] = (session.telemetry.phasePauseDurations[phase] || 0) + duration;
+    const cell = ensurePhaseCycleTelemetry(session.cycle || 1, phase);
+    cell.pauses += 1;
+    cell.pauseSec += duration;
+  }
+
+  function notePhaseSkip(phase, remainingSec) {
+    const remaining = Math.max(0, Number(remainingSec) || 0);
+    session.telemetry.phaseSkips[phase] = (session.telemetry.phaseSkips[phase] || 0) + 1;
+    session.telemetry.phaseSkipRemainingSec[phase] = (session.telemetry.phaseSkipRemainingSec[phase] || 0) + remaining;
+    const cell = ensurePhaseCycleTelemetry(session.cycle || 1, phase);
+    cell.skips += 1;
+    cell.skipRemainingSec += remaining;
+  }
+
+  function markBreathCompleted(cycle, breath) {
+    const key = String(Math.max(1, Number(cycle) || 1));
+    session.telemetry.breathsCompleted[key] = Math.max(
+      Number(session.telemetry.breathsCompleted[key]) || 0,
+      Number(breath) || 0
+    );
+  }
+
+  function totalCompletedBreaths(telemetry = session.telemetry) {
+    return Object.values(telemetry?.breathsCompleted || {}).reduce((sum, value) => sum + (Number(value) || 0), 0);
+  }
+
+  function isQualifyingSession(completed) {
+    if (completed) return true;
+    const config = session.config || settings;
+    if (session.roundsCompleted >= 1) return true;
+    const completedBreaths = totalCompletedBreaths();
+    const threshold = Math.max(5, Math.min(10, Math.ceil((Number(config.breaths) || 1) * .5)));
+    return completedBreaths >= threshold;
+  }
+
+  function createSessionId() {
+    if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+    return `session-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+  }
+
+  function buildRoundSummariesForCurrentSession() {
+    const config = session.config || settings;
+    const maxReached = Math.max(1, Math.min(Number(config.cycles) || 1, Math.max(Number(session.roundsCompleted) || 0, Number(session.cycle) || 1)));
+    const result = [];
+    for (let cycle = 1; cycle <= maxReached; cycle += 1) {
+      const cycleKey = String(cycle);
+      const phaseCells = session.telemetry?.phaseByCycle?.[cycleKey] || {};
+      const breathsCompleted = Number(session.telemetry?.breathsCompleted?.[cycleKey]) || 0;
+      const hold = session.telemetry?.holdCycles?.[cycleKey] || {};
+      const substantivePhases = ["inhale", "exhale", "exhaleHold", "recoveryInhale", "recoveryHold"];
+      const hasEvidence = breathsCompleted > 0 || substantivePhases.some(phase => (Number(phaseCells?.[phase]?.visits) || 0) > 0) || Object.keys(hold).length > 0;
+      if (!hasEvidence) continue;
+      const values = valuesForCycle(cycle, config);
+      const holdAdded = Number(hold.addedSec) || 0;
+      const holdPause = Number(hold.pauseExtensionSec) || 0;
+      const holdSkipped = Number(hold.skippedRemainingSec) || 0;
+      const rest = phaseCells.nextRoundPause || {};
+      const countdown = phaseCells.nextRoundCountdown || {};
+      result.push({
+        cycle,
+        breathsCompleted,
+        plannedBreaths: Number(config.breaths) || 0,
+        inhaleSec: Number(values.inhale) || 0,
+        exhaleSec: Number(values.exhale) || 0,
+        plannedHoldSec: Number(values.hold) || 0,
+        estimatedHoldSec: Math.max(0, (Number(values.hold) || 0) + holdAdded + holdPause - holdSkipped),
+        holdAddedSec: holdAdded,
+        holdPauseExtensionSec: holdPause,
+        holdSkippedRemainingSec: holdSkipped,
+        extraRestSec: (Number(rest.pauseSec) || 0) + (Number(countdown.pauseSec) || 0),
+        restSkippedRemainingSec: Number(rest.skipRemainingSec) || 0,
+        countdownSkippedRemainingSec: Number(countdown.skipRemainingSec) || 0
+      });
+    }
+    return result;
+  }
+
+  function recordSession(completed) {
+    const qualifying = isQualifyingSession(completed);
+    const entry = {
+      version: 3,
+      sessionId: createSessionId(),
+      completed: Boolean(completed),
+      qualifying,
+      startedAt: session.startedAtEpoch || Date.now(),
+      endedAt: Date.now(),
+      roundsCompleted: Math.max(0, Number(session.roundsCompleted) || 0),
+      stopPhase: completed ? "complete" : session.phase,
+      stopCycle: Math.max(1, Number(session.cycle) || 1),
+      stopBreath: Math.max(0, Number(session.breath) || 0),
+      stopBreathsCompleted: Math.max(0, Number(session.telemetry?.breathsCompleted?.[String(session.cycle || 1)]) || 0),
+      totalBreathsCompleted: totalCompletedBreaths(),
+      config: { ...(session.config || settings) },
+      roundSummaries: buildRoundSummariesForCurrentSession(),
+      telemetry: JSON.parse(JSON.stringify(session.telemetry || {}))
+    };
+    history.push(entry);
+    history = history.slice(-MAX_HISTORY_RECORDS);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    // v8: Lernfunktion entfernt. Verlauf wird weiter gespeichert, aber nicht mehr adaptiv ausgewertet.
+    return entry;
+  }
+
+  function median(values) {
+    const clean = values.filter(Number.isFinite).slice().sort((a, b) => a - b);
+    if (!clean.length) return 0;
+    const mid = Math.floor(clean.length / 2);
+    return clean.length % 2 ? clean[mid] : (clean[mid - 1] + clean[mid]) / 2;
+  }
+
+  function roundStep(value, step = 1) {
+    return Math.round((value + Number.EPSILON) / step) * step;
+  }
+
+  function holdSignalForRecord(record, cycle) {
+    const cell = record?.telemetry?.holdCycles?.[String(cycle)] || {};
+    return (Number(cell.addedSec) || 0)
+      + (Number(cell.pauseExtensionSec) || 0)
+      - (Number(cell.skippedRemainingSec) || 0);
+  }
+
+  function phaseSummaryForRecord(record, phase) {
+    return {
+      visits: Number(record?.telemetry?.phaseVisits?.[phase]) || 0,
+      pauses: Number(record?.telemetry?.phasePauseCounts?.[phase]) || 0,
+      pauseSec: Number(record?.telemetry?.phasePauseDurations?.[phase]) || 0,
+      skips: Number(record?.telemetry?.phaseSkips?.[phase]) || 0,
+      skipRemainingSec: Number(record?.telemetry?.phaseSkipRemainingSec?.[phase]) || 0
+    };
+  }
+
+  function phaseCycleSummaryForRecord(record, phase, cycle) {
+    const cell = record?.telemetry?.phaseByCycle?.[String(Math.max(1, Number(cycle) || 1))]?.[phase];
+    if (cell) {
+      return {
+        visits: Number(cell.visits) || 0,
+        pauses: Number(cell.pauses) || 0,
+        pauseSec: Number(cell.pauseSec) || 0,
+        skips: Number(cell.skips) || 0,
+        skipRemainingSec: Number(cell.skipRemainingSec) || 0
+      };
+    }
+    // Rückwärtskompatibilität: Bei alten Ein-Runden-Sitzungen kann die Gesamtphase als Runde 1 gelten.
+    if ((Number(record?.config?.cycles) || 1) === 1 && Number(cycle) === 1) return phaseSummaryForRecord(record, phase);
+    return { visits: 0, pauses: 0, pauseSec: 0, skips: 0, skipRemainingSec: 0 };
+  }
+
+  function similarSetting(record, key, current, relativeTolerance = .2, absoluteTolerance = .25) {
+    const value = Number(record?.config?.[key]);
+    if (!Number.isFinite(value)) return false;
+    const tolerance = Math.max(absoluteTolerance, Math.abs(Number(current) || 0) * relativeTolerance);
+    return Math.abs(value - current) <= tolerance;
+  }
+
+  function directionConsensus(values, threshold, minOpportunities = 6) {
+    const opportunities = values.length;
+    if (opportunities < minOpportunities) {
+      return { direction: 0, positive: 0, negative: 0, opportunities };
+    }
+    const positive = values.filter(value => value >= threshold).length;
+    const negative = values.filter(value => value <= -threshold).length;
+    const required = Math.max(4, Math.ceil(opportunities * .6));
+    const maxOpposition = Math.max(1, Math.floor(opportunities * .25));
+    if (positive >= required && negative <= maxOpposition) return { direction: 1, positive, negative, opportunities };
+    if (negative >= required && positive <= maxOpposition) return { direction: -1, positive, negative, opportunities };
+    return { direction: 0, positive, negative, opportunities };
+  }
+
+  function buildHoldChange(records, key, label, cycleSelector, alsoKeys = []) {
+    const current = Number(settings[key]) || 0;
+    if (current <= 0 && key.startsWith("holdExhale")) return null;
+
+    const comparable = records.filter(record => {
+      const cycle = cycleSelector(record);
+      const phase = phaseCycleSummaryForRecord(record, "exhaleHold", cycle);
+      return phase.visits > 0 && similarSetting(record, key, current, .2, 2);
+    });
+    const values = comparable.map(record => holdSignalForRecord(record, cycleSelector(record)));
+    const threshold = Math.max(1, current * .03);
+    const consensus = directionConsensus(values, threshold);
+    if (!consensus.direction) return null;
+
+    if (consensus.direction > 0) {
+      const positiveValues = values.filter(value => value >= threshold);
+      const typicalOverride = median(positiveValues);
+      const cap = Math.min(5, Math.max(1, current * .10));
+      const delta = Math.max(1, Math.min(cap, typicalOverride * .5));
+      const next = roundStep(current + delta, 1);
+      if (next <= current) return null;
+      return {
+        key, alsoKeys, label, from: current, to: next, unit: "s",
+        reason: `${consensus.positive}/${consensus.opportunities} vergleichbare Sitzungen zeigen wiederholte aktive Verlängerungen.`
+      };
+    }
+
+    const negativeValues = values.filter(value => value <= -threshold).map(Math.abs);
+    const typicalEarlySkip = median(negativeValues);
+    const cap = Math.min(15, Math.max(2, current * .20));
+    const delta = Math.max(1, Math.min(cap, typicalEarlySkip * .5));
+    const next = Math.max(0, roundStep(current - delta, 1));
+    if (next >= current) return null;
+    return {
+      key, alsoKeys, label, from: current, to: next, unit: "s",
+      reason: `${consensus.negative}/${consensus.opportunities} vergleichbare Sitzungen zeigen ein deutlich früheres Beenden der Haltephase.`
+    };
+  }
+
+  function weightedLinearHoldSignal(record, endpoint) {
+    const cycles = Math.max(1, Number(record?.config?.cycles) || 1);
+    let weightedSignal = 0;
+    let weightTotal = 0;
+    let visits = 0;
+
+    for (let cycle = 1; cycle <= cycles; cycle += 1) {
+      const phase = phaseCycleSummaryForRecord(record, "exhaleHold", cycle);
+      if (phase.visits <= 0) continue;
+      const ratio = cycles <= 1 ? 0 : (cycle - 1) / (cycles - 1);
+      const weight = cycles <= 1 ? 1 : (endpoint === "first" ? 1 - ratio : ratio);
+      if (weight <= 0) continue;
+      weightedSignal += holdSignalForRecord(record, cycle) * weight;
+      weightTotal += weight;
+      visits += phase.visits;
+    }
+
+    return {
+      visits,
+      signal: weightTotal > 0 ? weightedSignal / weightTotal : 0
+    };
+  }
+
+  function buildLinearHoldEndpointChange(records, key, label, endpoint, alsoKeys = []) {
+    const current = Number(settings[key]) || 0;
+    if (current <= 0) return null;
+    const comparable = records.filter(record =>
+      similarSetting(record, key, current, .2, 2)
+      && weightedLinearHoldSignal(record, endpoint).visits > 0
+    );
+    const values = comparable.map(record => weightedLinearHoldSignal(record, endpoint).signal);
+    const threshold = Math.max(1, current * .03);
+    const consensus = directionConsensus(values, threshold);
+    if (!consensus.direction) return null;
+
+    if (consensus.direction > 0) {
+      const typical = median(values.filter(value => value >= threshold));
+      const cap = Math.min(5, Math.max(1, current * .10));
+      const delta = Math.max(1, Math.min(cap, typical * .5));
+      const next = roundStep(current + delta, 1);
+      if (next <= current) return null;
+      return {
+        key, alsoKeys, label, from: current, to: next, unit: "s",
+        reason: `${consensus.positive}/${consensus.opportunities} vergleichbare Sitzungen: aktive Verlängerungen in den zu diesem Endwert gehörenden Runden sprechen für etwas mehr Haltezeit.`
+      };
+    }
+
+    const typical = median(values.filter(value => value <= -threshold).map(Math.abs));
+    const cap = Math.min(15, Math.max(2, current * .20));
+    const delta = Math.max(1, Math.min(cap, typical * .5));
+    const next = Math.max(0, roundStep(current - delta, 1));
+    if (next >= current) return null;
+    return {
+      key, alsoKeys, label, from: current, to: next, unit: "s",
+      reason: `${consensus.negative}/${consensus.opportunities} vergleichbare Sitzungen: frühes Beenden in den zu diesem Endwert gehörenden Runden spricht für etwas weniger Haltezeit.`
+    };
+  }
+
+
+  function buildPhaseDurationChange(records, {
+    phase, key, label, step, min, max, cycleSelector = null, relativeTolerance = .2,
+    absoluteTolerance = .25, allowIncrease = true, allowDecrease = true, alsoKeys = []
+  }) {
+    const current = Number(settings[key]) || 0;
+    const comparable = records.filter(record => {
+      if (!similarSetting(record, key, current, relativeTolerance, absoluteTolerance)) return false;
+      const summary = cycleSelector
+        ? phaseCycleSummaryForRecord(record, phase, cycleSelector(record))
+        : phaseSummaryForRecord(record, phase);
+      return summary.visits > 0;
+    });
+    const values = comparable.map(record => {
+      const summary = cycleSelector
+        ? phaseCycleSummaryForRecord(record, phase, cycleSelector(record))
+        : phaseSummaryForRecord(record, phase);
+      return (Number(summary.pauseSec) || 0) - (Number(summary.skipRemainingSec) || 0);
+    });
+    const threshold = Math.max(step, current * .08, .15);
+    const consensus = directionConsensus(values, threshold);
+    if (!consensus.direction) return null;
+
+    if (consensus.direction > 0 && allowIncrease) {
+      const next = Math.min(max, roundStep(current + step, step));
+      if (next <= current) return null;
+      return {
+        key, alsoKeys, label, from: current, to: next, unit: "s",
+        reason: `${consensus.positive}/${consensus.opportunities} vergleichbare Sitzungen: diese Phase wurde wiederholt pausiert und damit verlängert.`
+      };
+    }
+
+    if (consensus.direction < 0 && allowDecrease) {
+      const next = Math.max(min, roundStep(current - step, step));
+      if (next >= current) return null;
+      return {
+        key, alsoKeys, label, from: current, to: next, unit: "s",
+        reason: `${consensus.negative}/${consensus.opportunities} vergleichbare Sitzungen: diese Phase wurde wiederholt vorzeitig übersprungen.`
+      };
+    }
+    return null;
+  }
+
+  function weightedLinearPhaseSignal(record, phase, endpoint) {
+    const cycles = Math.max(1, Number(record?.config?.cycles) || 1);
+    let weightedSignal = 0;
+    let weightTotal = 0;
+    let visits = 0;
+
+    for (let cycle = 1; cycle <= cycles; cycle += 1) {
+      const summary = phaseCycleSummaryForRecord(record, phase, cycle);
+      if (summary.visits <= 0) continue;
+      const ratio = cycles <= 1 ? 0 : (cycle - 1) / (cycles - 1);
+      const weight = cycles <= 1 ? 1 : (endpoint === "first" ? 1 - ratio : ratio);
+      if (weight <= 0) continue;
+      const signal = (Number(summary.pauseSec) || 0) - (Number(summary.skipRemainingSec) || 0);
+      weightedSignal += signal * weight;
+      weightTotal += weight;
+      visits += summary.visits;
+    }
+
+    return {
+      visits,
+      signal: weightTotal > 0 ? weightedSignal / weightTotal : 0
+    };
+  }
+
+  function buildLinearEndpointChange(records, {
+    phase, key, label, endpoint, step, min, max, alsoKeys = []
+  }) {
+    const current = Number(settings[key]) || 0;
+    const comparable = records.filter(record =>
+      similarSetting(record, key, current, .2, .2)
+      && weightedLinearPhaseSignal(record, phase, endpoint).visits > 0
+    );
+    const values = comparable.map(record => weightedLinearPhaseSignal(record, phase, endpoint).signal);
+    const threshold = Math.max(step, current * .08, .15);
+    const consensus = directionConsensus(values, threshold);
+    if (!consensus.direction) return null;
+
+    if (consensus.direction > 0) {
+      const next = Math.min(max, roundStep(current + step, step));
+      if (next <= current) return null;
+      return {
+        key, alsoKeys, label, from: current, to: next, unit: "s",
+        reason: `${consensus.positive}/${consensus.opportunities} vergleichbare Sitzungen: Pausen in den zu diesem Endwert gehörenden Runden sprechen für etwas mehr Zeit.`
+      };
+    }
+
+    const next = Math.max(min, roundStep(current - step, step));
+    if (next >= current) return null;
+    return {
+      key, alsoKeys, label, from: current, to: next, unit: "s",
+      reason: `${consensus.negative}/${consensus.opportunities} vergleichbare Sitzungen: frühes Überspringen in den zu diesem Endwert gehörenden Runden spricht für etwas weniger Zeit.`
+    };
+  }
+
+
+  function buildRecoveryHoldChange(records) {
+    const current = Number(settings.recoveryHoldSec) || 0;
+    const comparable = records.filter(record =>
+      similarSetting(record, "recoveryHoldSec", current, .2, 2)
+      && phaseSummaryForRecord(record, "recoveryHold").visits > 0
+    );
+    const values = comparable.map(record => {
+      const phase = phaseSummaryForRecord(record, "recoveryHold");
+      return (Number(record?.telemetry?.recoveryHoldAddedSec) || 0)
+        + (Number(phase.pauseSec) || 0)
+        - (Number(record?.telemetry?.recoveryHoldSkippedRemainingSec) || 0);
+    });
+    const threshold = Math.max(1, current * .05);
+    const consensus = directionConsensus(values, threshold);
+    if (!consensus.direction) return null;
+
+    if (consensus.direction > 0) {
+      const typical = median(values.filter(value => value >= threshold));
+      const delta = Math.max(1, Math.min(3, typical * .5));
+      const next = Math.min(120, roundStep(current + delta, 1));
+      if (next <= current) return null;
+      return {
+        key: "recoveryHoldSec", label: "Erholungs-Halten", from: current, to: next, unit: "s",
+        reason: `${consensus.positive}/${consensus.opportunities} vergleichbare Sitzungen: Erholungs-Halten wurde aktiv verlängert.`
+      };
+    }
+
+    const typical = median(values.filter(value => value <= -threshold).map(Math.abs));
+    const delta = Math.max(1, Math.min(3, typical * .5));
+    const next = Math.max(0, roundStep(current - delta, 1));
+    if (next >= current) return null;
+    return {
+      key: "recoveryHoldSec", label: "Erholungs-Halten", from: current, to: next, unit: "s",
+      reason: `${consensus.negative}/${consensus.opportunities} vergleichbare Sitzungen: Erholungs-Halten wurde deutlich früher beendet.`
+    };
+  }
+
+  function buildInterRoundPauseChange(records) {
+    const current = Number(settings.nextRoundPauseSec) || 0;
+    const comparable = records.filter(record => {
+      if (!similarSetting(record, "nextRoundPauseSec", current, .25, 2)) return false;
+      const rest = phaseSummaryForRecord(record, "nextRoundPause");
+      const countdown = phaseSummaryForRecord(record, "nextRoundCountdown");
+      return rest.visits > 0 || countdown.visits > 0;
+    });
+    const values = comparable.map(record => {
+      const rest = phaseSummaryForRecord(record, "nextRoundPause");
+      const countdown = phaseSummaryForRecord(record, "nextRoundCountdown");
+      const extraPause = (Number(rest.pauseSec) || 0) + (Number(countdown.pauseSec) || 0);
+      return extraPause - (Number(rest.skipRemainingSec) || 0);
+    });
+    const consensus = directionConsensus(values, Math.max(1, current * .12));
+    if (!consensus.direction) return null;
+
+    if (consensus.direction > 0) {
+      const typical = median(values.filter(value => value >= Math.max(1, current * .12)));
+      const delta = Math.max(1, Math.min(5, typical * .5));
+      const next = Math.min(60, roundStep(current + delta, 1));
+      if (next <= current) return null;
+      return {
+        key: "nextRoundPauseSec", label: "Pause zwischen den Runden", from: current, to: next, unit: "s",
+        reason: `${consensus.positive}/${consensus.opportunities} vergleichbare Sitzungen: vor der nächsten Runde wurde wiederholt zusätzliche Pause genommen.`
+      };
+    }
+
+    const typical = median(values.filter(value => value <= -Math.max(1, current * .12)).map(Math.abs));
+    const delta = Math.max(1, Math.min(2, typical * .5));
+    const next = Math.max(0, roundStep(current - delta, 1));
+    if (next >= current) return null;
+    return {
+      key: "nextRoundPauseSec", label: "Pause zwischen den Runden", from: current, to: next, unit: "s",
+      reason: `${consensus.negative}/${consensus.opportunities} vergleichbare Sitzungen: die geplante Rundenpause wurde häufig vorzeitig übersprungen.`
+    };
+  }
+
+  function buildCycleCountChange(records) {
+    const current = Number(settings.cycles) || 1;
+    if (current <= 1) return null;
+    const comparable = records.filter(record => Number(record?.config?.cycles) === current);
+    const earlyStops = comparable.filter(record => {
+      const roundsDone = Number(record.roundsCompleted) || 0;
+      const phase = record.stopPhase;
+      const boundaryStop = ["nextRoundPause", "nextRoundCountdown", "recoveryInhale", "recoveryHold"].includes(phase);
+      const earlyNextRoundStop = ["inhale", "exhale"].includes(phase)
+        && Number(record.stopCycle) === roundsDone + 1
+        && Number(record.stopBreathsCompleted) <= Math.max(3, Math.ceil((Number(record?.config?.breaths) || 1) * .15));
+      return !record.completed && roundsDone >= 1 && roundsDone < current && (boundaryStop || earlyNextRoundStop);
+    });
+    const required = Math.max(4, Math.ceil(comparable.length * .6));
+    if (comparable.length < 6 || earlyStops.length < required) return null;
+    const target = Math.max(1, Math.min(current - 1, Math.round(median(earlyStops.map(record => Number(record.roundsCompleted) || 0)))));
+    if (target >= current) return null;
+    const nearTarget = earlyStops.filter(record => Math.abs((Number(record.roundsCompleted) || 0) - target) <= 1).length;
+    if (nearTarget < Math.ceil(earlyStops.length * .75)) return null;
+    const targetValues = valuesForCycle(target, settings);
+    return {
+      key: "cycles",
+      alsoKeyValue: {
+        inhaleLastSec: targetValues.inhale,
+        exhaleLastSec: targetValues.exhale,
+        holdExhaleLastSec: targetValues.hold
+      },
+      label: "Rundenanzahl", from: current, to: target, unit: "",
+      reason: `${earlyStops.length}/${comparable.length} vergleichbare Sitzungen wurden bewusst vor Ende beendet; typisch nach ${target} Runde${target === 1 ? "" : "n"}. Die bisherigen Zeiten dieser Runde bleiben als neuer Endwert erhalten.`
+    };
+  }
+
+  function buildBreathCountChange(records) {
+    const current = Number(settings.breaths) || 1;
+    if (current <= 5) return null;
+    const comparable = records.filter(record =>
+      Number(record?.config?.breaths) === current
+      && !record.completed
+      && Number(record.stopCycle) === 1
+      && Number(record.roundsCompleted) === 0
+      && ["inhale", "exhale"].includes(record.stopPhase)
+      && Number(record.stopBreathsCompleted) >= Math.max(5, Math.ceil(current * .5))
+      && Number(record.stopBreathsCompleted) < current
+    );
+    if (comparable.length < 6) return null;
+    const target = Math.max(5, Math.min(current - 1, Math.round(median(comparable.map(record => Number(record.stopBreathsCompleted) || 0)))));
+    const nearTarget = comparable.filter(record => Math.abs((Number(record.stopBreathsCompleted) || 0) - target) <= Math.max(2, current * .1)).length;
+    if (nearTarget < Math.ceil(comparable.length * .7)) return null;
+    return {
+      key: "breaths", label: "Atemzüge je Runde", from: current, to: target, unit: "",
+      reason: `${comparable.length} auswertbare Sitzungen endeten während des Atemblocks in einem ähnlichen Bereich um ${target} vollständig absolvierte Atemzüge.`
+    };
+  }
+
+  function buildAdaptiveSuggestion(records) {
+    const changes = [];
+    const currentCycles = settings.cycles;
+
+    const cycleChange = buildCycleCountChange(records);
+    if (cycleChange) changes.push(cycleChange);
+
+    const breathChange = buildBreathCountChange(records);
+    if (breathChange) changes.push(breathChange);
+
+    const firstHold = buildLinearHoldEndpointChange(
+      records,
+      "holdExhaleFirstSec",
+      currentCycles === 1 ? "Ausatem-Haltezeit" : "Ausatem-Haltezeit Startwert",
+      "first",
+      currentCycles === 1 ? ["holdExhaleLastSec"] : []
+    );
+    if (firstHold) changes.push(firstHold);
+
+    if (currentCycles > 1 && !cycleChange) {
+      const lastHold = buildLinearHoldEndpointChange(
+        records,
+        "holdExhaleLastSec",
+        "Ausatem-Haltezeit Endwert",
+        "last"
+      );
+      if (lastHold) changes.push(lastHold);
+    }
+
+    for (const spec of [
+      {
+        phase: "inhale", key: "inhaleFirstSec", label: currentCycles === 1 ? "Einatmen" : "Einatmen Startwert",
+        endpoint: "first", step: .1, min: .6, max: 20,
+        alsoKeys: currentCycles === 1 ? ["inhaleLastSec"] : []
+      },
+      {
+        phase: "exhale", key: "exhaleFirstSec", label: currentCycles === 1 ? "Ausatmen" : "Ausatmen Startwert",
+        endpoint: "first", step: .1, min: .6, max: 20,
+        alsoKeys: currentCycles === 1 ? ["exhaleLastSec"] : []
+      }
+    ]) {
+      const change = buildLinearEndpointChange(records, spec);
+      if (change) changes.push(change);
+    }
+
+    if (currentCycles > 1 && !cycleChange) {
+      for (const spec of [
+        {
+          phase: "inhale", key: "inhaleLastSec", label: "Einatmen Endwert",
+          endpoint: "last", step: .1, min: .6, max: 20
+        },
+        {
+          phase: "exhale", key: "exhaleLastSec", label: "Ausatmen Endwert",
+          endpoint: "last", step: .1, min: .6, max: 20
+        }
+      ]) {
+        const change = buildLinearEndpointChange(records, spec);
+        if (change) changes.push(change);
+      }
+    }
+
+    const prepareChange = buildPhaseDurationChange(records, {
+      phase: "prepare", key: "prepareSec", label: "Vorbereitungszeit",
+      step: 1, min: 0, max: 60, absoluteTolerance: 2
+    });
+    if (prepareChange) changes.push(prepareChange);
+
+    const recoveryInhaleChange = buildPhaseDurationChange(records, {
+      phase: "recoveryInhale", key: "recoveryInhaleSec", label: "Erholungs-Einatmen",
+      step: .5, min: .5, max: 30, absoluteTolerance: 1
+    });
+    if (recoveryInhaleChange) changes.push(recoveryInhaleChange);
+
+    const recoveryHoldChange = buildRecoveryHoldChange(records);
+    if (recoveryHoldChange) changes.push(recoveryHoldChange);
+
+    const interRoundPauseChange = buildInterRoundPauseChange(records);
+    if (interRoundPauseChange) changes.push(interRoundPauseChange);
+
+    const countdownChange = buildPhaseDurationChange(records, {
+      phase: "nextRoundCountdown", key: "nextRoundCountdownSec", label: "Countdown vor der nächsten Runde",
+      step: 1, min: 1, max: 5, absoluteTolerance: 1,
+      allowIncrease: !interRoundPauseChange || interRoundPauseChange.to <= interRoundPauseChange.from
+    });
+    if (countdownChange) changes.push(countdownChange);
+
+    const dates = records.map(record => Number(record.endedAt)).filter(Number.isFinite).sort((a, b) => a - b);
+    const partialCount = records.filter(record => !record.completed).length;
+    let cadence = `10 auswertbare Sitzungen analysiert${partialCount ? `, davon ${partialCount} bewusst vorzeitig beendet` : ""}.`;
+    if (dates.length >= 2) {
+      const spanDays = Math.max(1, (dates.at(-1) - dates[0]) / 86400000);
+      const perWeek = (dates.length - 1) / spanDays * 7;
+      cadence += ` Zeitraum etwa ${formatNumber(spanDays, 0)} Tage (≈ ${formatNumber(perWeek, 1)} Sitzungen/Woche). Die Häufigkeit allein verändert keine Intensität.`;
+    }
+
+    return { changes, cadence };
+  }
+
+  function maybeOfferAdaptiveSuggestionLocal() {
+    const sinceReview = adaptiveState.totalQualifying - adaptiveState.lastReviewedQualifying;
+    if (sinceReview < ADAPTIVE_WINDOW) return;
+    const qualifying = history.filter(entry => entry.qualifying || entry.completed).slice(-ADAPTIVE_WINDOW);
+    if (qualifying.length < ADAPTIVE_WINDOW) return;
+
+    pendingSuggestion = buildAdaptiveSuggestion(qualifying);
+    const hasChanges = pendingSuggestion.changes.length > 0;
+    el.adaptiveTitle.textContent = hasChanges ? "Vorschlag nach 10 Sitzungen" : "Auswertung nach 10 Sitzungen";
+    el.adaptiveIntro.textContent = hasChanges
+      ? "Die App hat wiederkehrende Bedienmuster in den tatsächlich genutzten Phasen erkannt. Nichts wird automatisch geändert; du entscheidest selbst."
+      : "Es gibt noch kein ausreichend klares, widerspruchsfreies Bedienmuster. Deine aktuellen Werte bleiben unverändert.";
+
+    el.adaptiveChanges.innerHTML = hasChanges
+      ? pendingSuggestion.changes.map(change => `
+          <div class="adaptive-change">
+            <div><strong>${escapeHtml(change.label)}</strong><small>${escapeHtml(change.reason)}</small></div>
+            <div class="adaptive-value">${formatNumber(change.from)} → ${formatNumber(change.to)}${change.unit ? ` ${escapeHtml(change.unit)}` : ""}</div>
+          </div>`).join("")
+      : '<div class="adaptive-change"><div><strong>Keine Änderung empfohlen</strong><small>Regelmäßige Nutzung allein gilt nicht als Grund für längere Haltezeiten, mehr Runden oder schnelleres Atmen.</small></div><div class="adaptive-value">beibehalten</div></div>';
+
+    el.adaptiveEvidence.textContent = `${pendingSuggestion.cadence} Pausen, Überspringen, zusätzliche Haltezeit, vorzeitiges Sitzungsende und die tatsächlich erreichten Runden/Atemzüge werden getrennt nach Phase ausgewertet.`;
+    el.acceptSuggestionBtn.style.display = hasChanges ? "block" : "none";
+    el.rejectSuggestionBtn.textContent = hasChanges ? "Ablehnen" : "Beibehalten";
+    el.adaptiveModal.classList.add("open");
+  }
+
+  function closeAdaptiveModal(reviewed = true) {
+    el.adaptiveModal.classList.remove("open");
+    if (reviewed) {
+      adaptiveState.lastReviewedQualifying = adaptiveState.totalQualifying;
+      saveAdaptiveState();
+    }
+  }
+
+  function acceptAdaptiveSuggestion() {
+    if (!pendingSuggestion?.changes?.length) return closeAdaptiveModal(true);
+    const next = { ...settings };
+    for (const change of pendingSuggestion.changes) {
+      next[change.key] = change.to;
+      for (const key of change.alsoKeys || []) next[key] = change.to;
+      if (change.alsoKeyValue) Object.assign(next, change.alsoKeyValue);
+    }
+    applySettingsToForm(next);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    flashSaveStatus("Vorschlag übernommen");
+    log("Lernvorschlag übernommen.");
+    closeAdaptiveModal(true);
+  }
+
+  function resetLearningHistory() {
+    if (session.active) return;
+    if (!window.confirm("Lernverlauf wirklich zurücksetzen? Deine Atemtimer-Einstellungen bleiben erhalten.")) return;
+    history = [];
+    adaptiveState = { totalQualifying: 0, lastReviewedQualifying: 0 };
+    localStorage.removeItem(HISTORY_KEY);
+    localStorage.removeItem(LEGACY_ADAPTIVE_STATE_KEY);
+    saveAdaptiveState();
+    log("Lernverlauf zurückgesetzt.");
+  }
+
+  function log(message) {
+    const time = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const row = document.createElement("div");
+    row.textContent = `${time} · ${message}`;
+    el.log.prepend(row);
+    while (el.log.children.length > 16) el.log.lastChild.remove();
+  }
+
+  async function ensureAudio() {
+    if (!audioCtx) {
+      const Context = window.AudioContext || window.webkitAudioContext;
+      if (Context) audioCtx = new Context();
+    }
+    if (audioCtx && audioCtx.state === "suspended") {
+      try { await audioCtx.resume(); } catch (_) {}
+    }
+    await startSilentMediaTrack();
+    setupMediaSession();
+  }
+
+  function makeSilentWavUrl(seconds = 1) {
+    const sampleRate = 8000;
+    const samples = Math.max(1, Math.floor(sampleRate * seconds));
+    const bytesPerSample = 2;
+    const dataSize = samples * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+    writeString(view, 0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(view, 8, "WAVE");
+    writeString(view, 12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * bytesPerSample, true);
+    view.setUint16(32, bytesPerSample, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, "data");
+    view.setUint32(40, dataSize, true);
+    // Sehr leiser Wechsel zwischen +1/-1 LSB statt digitaler Null. Das ist praktisch unhörbar,
+    // wird von iOS aber zuverlässiger als aktive Audio-Session behandelt.
+    for (let i = 0; i < samples; i += 1) view.setInt16(44 + i * 2, i % 2 ? 1 : -1, true);
+    return URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+  }
+
+  function writeString(view, offset, text) {
+    for (let index = 0; index < text.length; index += 1) view.setUint8(offset + index, text.charCodeAt(index));
+  }
+
+  async function startSilentMediaTrack() {
+    const meditationAudio = document.getElementById("meditationAudio");
+    if (meditationAudio && !meditationAudio.paused && !meditationAudio.ended) return;
+    if (!silentAudio) {
+      // Nahezu lautloser Audio-Träger hält Media-Session und Headset-Zuordnung möglichst aktiv.
+      // Ein längerer Loop reduziert Übergänge und vermeidet Abhängigkeit von JS am Track-Ende.
+      silentAudio = new Audio(makeSilentWavUrl(8));
+      silentAudio.loop = true;
+      silentAudio.volume = 1;
+      silentAudio.preload = "auto";
+      silentAudio.setAttribute("playsinline", "");
+      silentAudio.setAttribute("webkit-playsinline", "");
+    }
+    try { await silentAudio.play(); }
+    catch (_) { log("Stumme Media-Spur konnte nicht gestartet werden. Media-Keys können eingeschränkt sein."); }
+  }
+
+  function setupMediaSession() {
+    if (!("mediaSession" in navigator)) {
+      el.mediaBadge.innerHTML = '<span class="status-dot"></span>Media-Keys: nicht unterstützt';
+      return;
+    }
+    el.mediaBadge.innerHTML = '<span class="status-dot"></span>Media-Keys: aktiv';
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: "Volmer Briefing Atemtimer",
+        artist: "Atemtimer",
+        album: "Breathwork"
+      });
+    } catch (_) {}
+
+    const handlers = {
+      // Beide Media-Aktionen toggeln bewusst den Atemtimer. Die lautlose Audiospur läuft
+      // während einer Timer-Pause weiter, damit das Headset nicht zur letzten Musik-App springt.
+      play: togglePause,
+      pause: togglePause,
+      stop: stopSession,
+      previoustrack: () => addHoldTime(15),
+      nexttrack: skipPhase,
+      seekbackward: () => addHoldTime(15),
+      seekforward: skipPhase
+    };
+    for (const [action, handler] of Object.entries(handlers)) {
+      try { navigator.mediaSession.setActionHandler(action, handler); } catch (_) {}
+    }
+    updatePlaybackState();
+  }
+
+  function updatePlaybackState() {
+    if ("mediaSession" in navigator) {
+      try {
+        // Solange eine Atemsitzung aktiv ist, behalten wir die Media-Session absichtlich im
+        // Status "playing". Nur der Atemtimer pausiert; die lautlose Trägerspur läuft weiter.
+        // Dadurch bleibt der nächste Druck auf Play/Pause beim Atemtimer statt Musik zu starten.
+        navigator.mediaSession.playbackState = session.active ? "playing" : "paused";
+      } catch (_) {}
+    }
+  }
+
+  function beep(frequency = 660, duration = .12, volume = .08, type = "sine") {
+    if (isCatchingUp || !currentConfig().beeps || !audioCtx) return;
+    const now = audioCtx.currentTime;
+    const oscillator = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, now);
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(volume, now + .018);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+    oscillator.start(now);
+    oscillator.stop(now + duration + .03);
+  }
+
+  function playCue(name) {
+    const cue = AUDIO_CUES[name];
+    if (!cue) return;
+    beep(cue.frequency, cue.duration, cue.volume);
+  }
+
+  function standardCountdownBeep() {
+    playCue("countdown");
+  }
+
+  function speak(text) {
+    if (isCatchingUp || !currentConfig().voice || !("speechSynthesis" in window) || !text) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "de-DE";
+      utterance.rate = 1.02;
+      utterance.pitch = 1;
+      utterance.volume = .9;
+      window.speechSynthesis.speak(utterance);
+    } catch (_) {}
+  }
+
+  async function requestWakeLock() {
+    if (!currentConfig().wakeLockEnabled || !("wakeLock" in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } catch (_) { log("Wake Lock nicht verfügbar oder abgelehnt."); }
+  }
+
+  async function releaseWakeLock() {
+    if (!wakeLock) return;
+    try { await wakeLock.release(); } catch (_) {}
+    wakeLock = null;
+  }
+
+  async function startSession() {
+    settings = readSettings();
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    session = freshSession();
+    session.active = true;
+    session.config = { ...settings };
+    session.startedAtEpoch = Date.now();
+    session.totalDurationSec = estimateTotalDuration(session.config);
+    session.cycle = 1;
+    setControls(true);
+    await ensureAudio();
+    await requestWakeLock();
+    log("Sitzung gestartet.");
+    speak("Start. Bereit machen.");
+
+    if (session.config.prepareSec > 0) {
+      setPhase("prepare", "Vorbereitung", session.config.prepareSec, "Ruhig sitzen. Danach beginnt Runde 1.", startBreathCycle);
+    } else {
+      startBreathCycle();
+    }
+    render();
+    tick();
+  }
+
+  function startBreathCycle() {
+    const config = currentConfig();
+    const values = valuesForCycle(session.cycle, config);
+    session.breath = 1;
+    log(`Runde ${session.cycle} von ${config.cycles}: ${formatNumber(values.inhale)}/${formatNumber(values.exhale)} s, Atempause ${formatNumber(values.hold, 0)} s.`);
+    speak(`Runde ${session.cycle}. Beginnen.`);
+    startInhale();
+  }
+
+  function startInhale() {
+    const config = currentConfig();
+    const values = valuesForCycle(session.cycle, config);
+    const breathsRemaining = Math.max(1, config.breaths - session.breath + 1);
+    const isFinalFiveBreaths = breathsRemaining <= STANDARD_COUNTDOWN_SEC;
+    const shouldCount = session.breath % config.countEvery === 0 || session.breath === config.breaths;
+
+    // In den letzten fünf Atemzügen wird überall dasselbe 5→1-Signal verwendet.
+    // Davor bleibt die optionale normale Atemzugzählung (z. B. 10, 20, 30) bestehen.
+    if (isFinalFiveBreaths) speak(String(breathsRemaining));
+    else if (shouldCount) speak(String(session.breath));
+
+    setPhase(
+      "inhale",
+      "Einatmen",
+      values.inhale,
+      `Atemzug ${session.breath} von ${config.breaths} · ${formatNumber(values.inhale)} Sekunden.`,
+      startExhale
+    );
+    if (isFinalFiveBreaths) standardCountdownBeep();
+    else playCue("inhale");
+  }
+
+  function startExhale() {
+    const config = currentConfig();
+    const values = valuesForCycle(session.cycle, config);
+    setPhase(
+      "exhale",
+      "Ausatmen",
+      values.exhale,
+      `Atemzug ${session.breath} von ${config.breaths} · ${formatNumber(values.exhale)} Sekunden.`,
+      () => {
+        if (session.lastFinishReason !== "skip") markBreathCompleted(session.cycle, session.breath);
+        if (session.breath < config.breaths) {
+          session.breath += 1;
+          startInhale();
+        } else {
+          startExhaleHold();
+        }
+      }
+    );
+    playCue("exhale");
+  }
+
+  function startExhaleHold() {
+    const values = valuesForCycle(session.cycle);
+    speak("Ausatmen und halten.");
+    log(`Ausatem-Haltezeit gestartet: ${formatNumber(values.hold, 0)} Sekunden.`);
+    setPhase(
+      "exhaleHold",
+      "Ausatmen halten",
+      values.hold,
+      currentConfig().pauseExtendsHold
+        ? "Pause friert den Countdown ein und verlängert dadurch die Haltezeit."
+        : "Bei Pause läuft die Haltezeit im Hintergrund weiter.",
+      startRecoveryInhale
+    );
+    playCue("hold");
+  }
+
+  function startRecoveryInhale() {
+    const config = currentConfig();
+    speak("Einatmen.");
+    setPhase("recoveryInhale", "Erholungsatem", config.recoveryInhaleSec, "Tief einatmen.", startRecoveryHold);
+    playCue("inhale");
+  }
+
+  function startRecoveryHold() {
+    const config = currentConfig();
+    speak("Halten.");
+    setPhase("recoveryHold", "Einatmen halten", config.recoveryHoldSec, "Erholungs-Haltephase.", () => {
+      session.roundsCompleted = Math.max(session.roundsCompleted, session.cycle);
+      if (session.cycle < config.cycles) {
+        session.cycle += 1;
+        startNextRoundPause();
+      } else {
+        completeSession();
+      }
+    });
+    playCue("hold");
+  }
+
+  function startNextRoundPause() {
+    const config = currentConfig();
+    const pause = Math.max(0, Number(config.nextRoundPauseSec) || 0);
+    const countdown = STANDARD_COUNTDOWN_SEC;
+    log(`Pause vor Runde ${session.cycle}: ${formatNumber(pause, 0)} Sekunden + ${formatNumber(countdown, 0)} Sekunden Countdown.`);
+    if (pause > 0) {
+      speak("Ausatmen und entspannen.");
+      setPhase(
+        "nextRoundPause",
+        "Ausatmen & Pause",
+        pause,
+        `Locker ausatmen und erholen. Danach folgt der ${formatNumber(countdown, 0)}-Sekunden-Countdown für Runde ${session.cycle}.`,
+        startNextRoundCountdown
+      );
+      playCue("exhale");
+    } else {
+      startNextRoundCountdown();
+    }
+  }
+
+  function startNextRoundCountdown() {
+    const config = currentConfig();
+    const countdown = STANDARD_COUNTDOWN_SEC;
+    setPhase(
+      "nextRoundCountdown",
+      "Nächste Runde",
+      countdown,
+      `Runde ${session.cycle} beginnt gleich. Pause stoppt den Countdown und wird als zusätzliche Rundenpause erfasst.`,
+      startBreathCycle
+    );
+    const firstNumber = Math.max(1, Math.ceil(countdown));
+    session.phaseCountdownSpoken.add(firstNumber);
+    speak(`Nächste Runde. ${firstNumber}.`);
+    standardCountdownBeep();
+  }
+
+  function completeSession() {
+    recordSession(true);
+    session.active = false;
+    session.paused = false;
+    session.phase = "complete";
+    session.phaseLabel = "Fertig";
+    session.phaseDetail = "Sitzung abgeschlossen. Normal weiteratmen.";
+    session.remainingSec = 0;
+    session.durationSec = 0;
+    setControls(false);
+    updatePlaybackState();
+    releaseWakeLock();
+    speak("Fertig. Normal weiteratmen.");
+    playCue("complete");
+    log("Sitzung abgeschlossen und im Verlauf gespeichert.");
+    if (silentAudio) { try { silentAudio.pause(); } catch (_) {} }
+    stopClock();
+    render();
+    window.setTimeout(maybeOfferAdaptiveSuggestion, 550);
+  }
+
+  function setPhase(phase, label, durationSec, detail, onComplete) {
+    const duration = Math.max(0, Number(durationSec) || 0);
+    session.phase = phase;
+    session.holdCountdownSpoken = new Set();
+    session.phaseCountdownSpoken = new Set();
+    session.phaseLabel = label;
+    session.phaseDetail = detail;
+    session.durationSec = duration;
+    session.remainingSec = duration;
+    session.phaseStartedAtEpoch = Date.now();
+    session.phaseEndsAtEpoch = session.phaseStartedAtEpoch + duration * 1000;
+    session.onComplete = onComplete;
+    notePhaseVisit(phase);
+    updatePlaybackState();
+    render();
+  }
+
+  function maybeAnnouncePhaseCountdowns() {
+    if (session.paused) return;
+
+    if (session.phase === "exhaleHold") {
+      const remaining = Math.ceil(session.remainingSec);
+      if (remaining >= 1 && remaining <= STANDARD_COUNTDOWN_SEC && !session.holdCountdownSpoken.has(remaining)) {
+        session.holdCountdownSpoken.add(remaining);
+        speak(String(remaining));
+        standardCountdownBeep();
+      }
+      return;
+    }
+
+    if (session.phase === "prepare") {
+      const remaining = Math.ceil(session.remainingSec);
+      if (remaining >= 1 && remaining <= STANDARD_COUNTDOWN_SEC && !session.phaseCountdownSpoken.has(remaining)) {
+        session.phaseCountdownSpoken.add(remaining);
+        speak(String(remaining));
+        standardCountdownBeep();
+      }
+      return;
+    }
+
+    if (session.phase === "nextRoundCountdown") {
+      const remaining = Math.ceil(session.remainingSec);
+      if (remaining >= 1 && remaining <= STANDARD_COUNTDOWN_SEC && !session.phaseCountdownSpoken.has(remaining)) {
+        session.phaseCountdownSpoken.add(remaining);
+        speak(String(remaining));
+        standardCountdownBeep();
+      }
+    }
+  }
+
+  function stopUiLoop() {
+    if (uiRafId) cancelAnimationFrame(uiRafId);
+    uiRafId = 0;
+  }
+
+  function startUiLoop() {
+    stopUiLoop();
+    const loop = () => {
+      if (!session.active || document.visibilityState !== "visible") {
+        uiRafId = 0;
+        return;
+      }
+      syncSessionClock(false);
+      render();
+      uiRafId = requestAnimationFrame(loop);
+    };
+    uiRafId = requestAnimationFrame(loop);
+  }
+
+  function stopClock() {
+    if (clockTimerId) window.clearInterval(clockTimerId);
+    clockTimerId = 0;
+    stopUiLoop();
+  }
+
+  function syncSessionClock(renderNow = true) {
+    if (!session.active) return;
+
+    if (session.paused) {
+      if (!session.pauseFreezesCurrentPhase) {
+        session.remainingSec = Math.max(0, (session.phaseEndsAtEpoch - Date.now()) / 1000);
+      }
+      if (renderNow) render();
+      return;
+    }
+
+    let guard = 0;
+    while (session.active && !session.paused && guard < 500) {
+      const now = Date.now();
+      const rawRemaining = (session.phaseEndsAtEpoch - now) / 1000;
+      session.remainingSec = Math.max(0, rawRemaining);
+      if (rawRemaining > .012) break;
+
+      const overdueSec = Math.max(0, -rawRemaining);
+      const wasCatchUp = overdueSec > 1.5;
+      if (wasCatchUp) {
+        isCatchingUp = true;
+        session.telemetry.backgroundCatchups += 1;
+      }
+      const previousPhase = session.phase;
+      finishCurrentPhase("timer");
+      if (session.active && overdueSec > .012 && session.phase !== previousPhase) {
+        session.phaseEndsAtEpoch -= overdueSec * 1000;
+      }
+      isCatchingUp = false;
+      guard += 1;
+    }
+
+    maybeAnnouncePhaseCountdowns();
+    if (renderNow) render();
+  }
+
+  function tick() {
+    stopClock();
+    syncSessionClock(true);
+
+    // Logik und UI sind absichtlich getrennt:
+    // - Date.now() + Intervall hält Phasen im Hintergrund synchron.
+    // - requestAnimationFrame rendert im Vordergrund Kreis und Fortschritt mit Bildschirmrate.
+    clockTimerId = window.setInterval(() => {
+      syncSessionClock(document.visibilityState !== "visible");
+    }, 250);
+    if (document.visibilityState === "visible") startUiLoop();
+  }
+
+  function finishCurrentPhase(reason = "timer") {
+    const next = session.onComplete;
+    session.onComplete = null;
+    session.lastFinishReason = reason;
+    if (typeof next === "function") next();
+    session.lastFinishReason = "timer";
+  }
+
+  function pauseSession() {
+    if (!session.active || session.paused) return;
+    const config = currentConfig();
+    const now = Date.now();
+    session.paused = true;
+    session.remainingSec = Math.max(0, (session.phaseEndsAtEpoch - now) / 1000);
+    session.pauseStartedAtEpoch = now;
+    session.pausePhase = session.phase;
+    session.pauseFreezesCurrentPhase = !(session.phase === "exhaleHold" && !config.pauseExtendsHold);
+    updatePlaybackState();
+    // Die Trägerspur läuft absichtlich weiter, damit die nächste Headset-Taste beim Atemtimer bleibt.
+    startSilentMediaTrack();
+
+    if (["nextRoundPause", "nextRoundCountdown"].includes(session.phase)) {
+      log("Zusätzliche Pause vor der nächsten Runde gestartet; Dauer wird im Sitzungsverlauf erfasst.");
+    } else {
+      log(session.pauseFreezesCurrentPhase ? "Pause aktiviert: Countdown angehalten." : "Pause aktiviert: Haltezeit läuft im Hintergrund weiter.");
+    }
+    speak("Pause.");
+    render();
+  }
+
+  function finalizeOpenPauseTelemetry() {
+    if (!session.paused || !session.pauseStartedAtEpoch) return 0;
+    const pausedForSec = Math.max(0, (Date.now() - session.pauseStartedAtEpoch) / 1000);
+    const phase = session.pausePhase || session.phase;
+    if (pausedForSec >= .15) notePhasePause(phase, pausedForSec);
+
+    if (session.pauseFreezesCurrentPhase) {
+      session.totalDurationSec += pausedForSec;
+      if (phase === "exhaleHold" && currentConfig().pauseExtendsHold && pausedForSec >= .5) {
+        ensureHoldTelemetry(session.cycle).pauseExtensionSec += pausedForSec;
+      }
+    }
+
+    session.pauseStartedAtEpoch = 0;
+    session.pausePhase = "";
+    return pausedForSec;
+  }
+
+  async function resumeSession() {
+    if (!session.active || !session.paused) return;
+    const now = Date.now();
+    let remaining = session.pauseFreezesCurrentPhase
+      ? session.remainingSec
+      : Math.max(0, (session.phaseEndsAtEpoch - now) / 1000);
+
+    finalizeOpenPauseTelemetry();
+    session.paused = false;
+    session.remainingSec = remaining;
+
+    await startSilentMediaTrack();
+    updatePlaybackState();
+    log("Fortgesetzt.");
+    speak("Weiter.");
+
+    if (remaining <= .012) finishCurrentPhase("timer");
+    else if (session.pauseFreezesCurrentPhase) session.phaseEndsAtEpoch = Date.now() + remaining * 1000;
+
+    render();
+    if (document.visibilityState === "visible") startUiLoop();
+  }
+
+  function togglePause() {
+    if (!session.active) return;
+    if (session.paused) resumeSession();
+    else pauseSession();
+  }
+
+  function addHoldTime(seconds = 15) {
+    if (!session.active) return;
+    if (session.phase !== "exhaleHold" && session.phase !== "recoveryHold") {
+      log("Zusätzliche Haltezeit ist nur in Haltephasen verfügbar.");
+      return;
+    }
+    const add = Number(seconds) || 15;
+    session.remainingSec += add;
+    if (!session.paused || !session.pauseFreezesCurrentPhase) session.phaseEndsAtEpoch += add * 1000;
+    session.durationSec += add;
+    if (session.phase === "exhaleHold") ensureHoldTelemetry(session.cycle).addedSec += add;
+    else session.telemetry.recoveryHoldAddedSec += add;
+    session.totalDurationSec += add;
+    log(`${add} Sekunden Haltezeit hinzugefügt.`);
+    playCue("action");
+    render();
+  }
+
+  function skipPhase() {
+    if (!session.active) return;
+    const skippedPhase = session.phase;
+    if (session.paused) {
+      finalizeOpenPauseTelemetry();
+      session.paused = false;
+      updatePlaybackState();
+    }
+    const skippedRemaining = Math.max(0, Number(session.remainingSec) || 0);
+    notePhaseSkip(skippedPhase, skippedRemaining);
+    if (skippedPhase === "exhaleHold") ensureHoldTelemetry(session.cycle).skippedRemainingSec += skippedRemaining;
+    if (skippedPhase === "recoveryHold") session.telemetry.recoveryHoldSkippedRemainingSec += skippedRemaining;
+    log(`Phase übersprungen: ${session.phaseLabel}.`);
+    session.remainingSec = 0;
+    session.phaseEndsAtEpoch = Date.now();
+    finishCurrentPhase("skip");
+    render();
+  }
+
+  function stopSession() {
+    if (!session.active && session.phase !== "complete") return;
+
+    let entry = null;
+    if (session.active) {
+      if (session.paused) finalizeOpenPauseTelemetry();
+      entry = recordSession(false);
+    }
+
+    session = freshSession();
+    stopClock();
+    setControls(false);
+    updatePlaybackState();
+    releaseWakeLock();
+    if (silentAudio) { try { silentAudio.pause(); } catch (_) {} }
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+    if (entry?.qualifying) {
+      log(`Sitzung nach ${entry.roundsCompleted} vollständig absolvierten Runde${entry.roundsCompleted === 1 ? "" : "n"} beendet und im Verlauf gespeichert.`);
+      window.setTimeout(maybeOfferAdaptiveSuggestion, 550);
+    } else {
+      log("Sitzung gestoppt. Für den Verlauf war noch zu wenig Übungsumfang vorhanden.");
+    }
+    render();
+  }
+
+  function setControls(active) {
+    el.startBtn.disabled = active;
+    el.pauseBtn.disabled = !active;
+    el.skipBtn.disabled = !active;
+    el.stopBtn.disabled = !active;
+    el.addHoldBtn.disabled = !active;
+    el.cycleMinusBtn.disabled = active;
+    el.cyclePlusBtn.disabled = active;
+    ids.forEach(id => { el[id].disabled = active; });
+    el.applyDefaultsBtn.disabled = active;
+    el.saveDefaultsBtn.disabled = active;
+    el.factoryDefaultsBtn.disabled = active;
+    el.resetLearningBtn.disabled = active;
+  }
+
+  function cycleDuration(cycle, config) {
+    const values = valuesForCycle(cycle, config);
+    return config.breaths * (values.inhale + values.exhale)
+      + values.hold
+      + config.recoveryInhaleSec
+      + config.recoveryHoldSec;
+  }
+
+  function interRoundDuration(config) {
+    return Math.max(0, Number(config.nextRoundPauseSec) || 0)
+      + STANDARD_COUNTDOWN_SEC;
+  }
+
+  function estimateTotalDuration(config) {
+    let total = Math.max(0, Number(config.prepareSec) || 0);
+    for (let cycle = 1; cycle <= config.cycles; cycle += 1) {
+      total += cycleDuration(cycle, config);
+      if (cycle < config.cycles) total += interRoundDuration(config);
+    }
+    return Math.max(0, total);
+  }
+
+  function remainingPlannedDuration() {
+    const config = currentConfig();
+    if (!session.active) return session.phase === "complete" ? 0 : estimateTotalDuration(config);
+
+    let total = Math.max(0, session.remainingSec || 0);
+    const values = valuesForCycle(session.cycle, config);
+    const unit = values.inhale + values.exhale;
+    const remainingWholeBreaths = Math.max(0, config.breaths - session.breath);
+
+    if (session.phase === "prepare") {
+      total += cycleDuration(1, config);
+    } else if (session.phase === "inhale") {
+      total += values.exhale + remainingWholeBreaths * unit + values.hold + config.recoveryInhaleSec + config.recoveryHoldSec;
+    } else if (session.phase === "exhale") {
+      total += remainingWholeBreaths * unit + values.hold + config.recoveryInhaleSec + config.recoveryHoldSec;
+    } else if (session.phase === "exhaleHold") {
+      total += config.recoveryInhaleSec + config.recoveryHoldSec;
+    } else if (session.phase === "recoveryInhale") {
+      total += config.recoveryHoldSec;
+    } else if (session.phase === "nextRoundPause") {
+      total += STANDARD_COUNTDOWN_SEC;
+      total += cycleDuration(session.cycle, config);
+    } else if (session.phase === "nextRoundCountdown") {
+      total += cycleDuration(session.cycle, config);
+    }
+
+    for (let cycle = session.cycle + 1; cycle <= config.cycles; cycle += 1) {
+      total += interRoundDuration(config);
+      total += cycleDuration(cycle, config);
+    }
+    return Math.max(0, total);
+  }
+
+  function render() {
+    const config = currentConfig();
+    const phaseTotal = session.durationSec || 0;
+    const phaseElapsed = phaseTotal ? Math.max(0, phaseTotal - session.remainingSec) : 0;
+    const degrees = phaseTotal ? Math.min(360, Math.max(0, phaseElapsed / phaseTotal * 360)) : 0;
+    el.timerRing.style.setProperty("--p", `${degrees}deg`);
+    document.body.dataset.phase = session.phase;
+
+    el.phaseKicker.textContent = session.paused ? "Pausiert" : (session.active ? `Runde ${session.cycle} läuft` : "Status");
+    el.phaseName.textContent = session.phaseLabel;
+    if (session.paused) {
+      if (["nextRoundPause", "nextRoundCountdown"].includes(session.phase)) {
+        el.phaseDetail.textContent = "Rundenpause angehalten. Die zusätzliche Pausenzeit wird lokal im Sitzungsverlauf gespeichert.";
+      } else {
+        el.phaseDetail.textContent = session.pauseFreezesCurrentPhase
+          ? "Countdown angehalten. Play/Pause setzt die Sitzung fort."
+          : "Die Ausatem-Haltezeit läuft trotz Pause sichtbar weiter; Fortsetzen wechselt danach in die nächste Phase.";
+      }
+    } else {
+      el.phaseDetail.textContent = session.phaseDetail;
+    }
+    el.timer.textContent = formatTime(session.remainingSec);
+
+    const plannedTotal = session.totalDurationSec || estimateTotalDuration(config);
+    const plannedRemaining = session.phase === "complete" ? 0 : remainingPlannedDuration();
+    const completedRatio = plannedTotal ? Math.max(0, Math.min(1, 1 - plannedRemaining / plannedTotal)) : 0;
+    el.totalDurationLabel.textContent = `Gesamtdauer: ${formatTime(plannedTotal)}`;
+    el.totalRemainingLabel.textContent = `Rest: ${formatTime(plannedRemaining)}`;
+    el.totalProgressFill.style.transform = `scaleX(${completedRatio})`;
+
+    const displayCycle = session.cycle || 1;
+    const values = valuesForCycle(displayCycle, config);
+    el.cycleMetric.textContent = `${session.cycle || 0}/${config.cycles}`;
+    el.breathMetric.textContent = `${session.breath || 0}/${config.breaths}`;
+    el.roundPaceMetric.textContent = `${formatNumber(values.inhale)} / ${formatNumber(values.exhale)} s`;
+    el.roundPaceLabel.textContent = `Ein / Aus in Runde ${displayCycle}`;
+    el.pauseBtn.textContent = session.paused ? "Fortsetzen" : "Pause";
+    el.addHoldBtn.disabled = !session.active || !(session.phase === "exhaleHold" || session.phase === "recoveryHold");
+  }
+
+  function adjustCycles(delta) {
+    if (session.active) return;
+    const next = clampInt(Number(el.cycles.value) + delta, 1, 20);
+    el.cycles.value = next;
+    saveSettings({ normalizeForm: true });
+  }
+
+  function saveCurrentAsDefaults() {
+    if (session.active) return;
+    const next = readSettings();
+    userDefaults = { ...next };
+    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(userDefaults));
+    renderPresetChips();
+    flashSaveStatus("Standard aktualisiert");
+    log("Aktuelle Werte als eigener Standard gespeichert.");
+  }
+
+  function applySavedDefaults() {
+    if (session.active) return;
+    applySettingsToForm(userDefaults);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    flashSaveStatus("Standard geladen");
+    log("Gespeicherte Standardwerte geladen.");
+  }
+
+  function restoreFactoryDefaults() {
+    if (session.active) return;
+    const confirmed = window.confirm("Werkseinstellungen wiederherstellen? Dabei werden auch deine gespeicherten Standardwerte ersetzt.");
+    if (!confirmed) return;
+    userDefaults = { ...FACTORY_DEFAULTS };
+    localStorage.setItem(DEFAULTS_KEY, JSON.stringify(userDefaults));
+    applySettingsToForm(FACTORY_DEFAULTS);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    flashSaveStatus("Werkseinstellungen geladen");
+    log("Werkseinstellungen wiederhergestellt.");
+  }
+
+
+  /* ===== v6: profile, analytics, AI orchestration ===== */
+  const PROFILE_KEY = "volmer-profile-v1";
+  const AI_REPORTS_KEY = "volmer-ai-reports-v1";
+  const AI_RECOMMENDATION_ACTIONS_KEY = "volmer-ai-recommendation-actions-v1";
+  const AI_ENDPOINT_KEY = "volmer-ai-endpoint-v1";
+  const DEFAULT_PROFILE = Object.freeze({ name: "Lucca", tone: "personal", goal: "", aiEnabled: false });
+  let profile = loadProfile();
+  let aiReports = loadAiReports();
+  let aiRecommendationActions = loadAiRecommendationActions();
+  let historyMetric = "hold";
+  let historyRange = "30";
+  let sessionListLimit = 8;
+  let activeAiReport = aiReports.at(-1) || null;
+
+  function loadProfile() {
+    const saved = safeParse(localStorage.getItem(PROFILE_KEY));
+    return { ...DEFAULT_PROFILE, ...saved, aiEnabled: false };
+  }
+
+  function saveProfile() {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    applyProfileUi();
+  }
+
+  function loadAiReports() {
+    const saved = safeParse(localStorage.getItem(AI_REPORTS_KEY));
+    return Array.isArray(saved) ? saved.slice(-12) : [];
+  }
+
+  function loadAiRecommendationActions() {
+    const saved = safeParse(localStorage.getItem(AI_RECOMMENDATION_ACTIONS_KEY));
+    return Array.isArray(saved) ? saved.slice(-120) : [];
+  }
+
+  function recordAiRecommendationAction(report, change, decision) {
+    if (!change?.id) return;
+    aiRecommendationActions.push({
+      id: `action-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+      createdAt: Date.now(),
+      reportId: report?.id || "",
+      changeId: change.id,
+      key: change.key || "",
+      label: change.label || "",
+      from: Number(change.from),
+      to: Number(change.to),
+      decision
+    });
+    aiRecommendationActions = aiRecommendationActions.slice(-120);
+    localStorage.setItem(AI_RECOMMENDATION_ACTIONS_KEY, JSON.stringify(aiRecommendationActions));
+  }
+
+  function saveAiReports() {
+    aiReports = aiReports.slice(-12);
+    localStorage.setItem(AI_REPORTS_KEY, JSON.stringify(aiReports));
+  }
+
+  function getAiEndpoint() {
+    const local = (localStorage.getItem(AI_ENDPOINT_KEY) || "").trim();
+    const configured = String(window.VOLMER_AI_ENDPOINT || "").trim();
+    return local || configured;
+  }
+
+  function applyProfileUi() {
+    const display = profile.name || "Du";
+    document.querySelectorAll("[data-profile-name]").forEach(node => { node.textContent = display; });
+    const nameInput = document.getElementById("userNameInput");
+    const tone = document.getElementById("aiToneSelect");
+    const goal = document.getElementById("userGoalInput");
+    const enabled = document.getElementById("aiEnabledInput");
+    const endpoint = document.getElementById("aiEndpointInput");
+    if (nameInput) nameInput.value = profile.name || "";
+    if (tone) tone.value = profile.tone || "personal";
+    if (goal) goal.value = profile.goal || "";
+    if (enabled) enabled.checked = profile.aiEnabled !== false;
+    if (endpoint) endpoint.value = getAiEndpoint();
+    const subtitle = document.getElementById("personalHeaderSubtitle");
+    if (subtitle) subtitle.textContent = profile.name ? `${profile.name}s persönlicher Atembegleiter.` : "Dein persönlicher Atembegleiter.";
+  }
+
+  function openAppTab(tabId) {
+    document.querySelectorAll(".app-tab").forEach(tab => tab.classList.toggle("active", tab.id === tabId));
+    document.querySelectorAll("[data-app-tab]").forEach(btn => btn.classList.toggle("active", btn.dataset.appTab === tabId));
+    if (tabId === "analysisTab") renderAnalysisDashboard();
+    if (tabId === "profileTab") applyProfileUi();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function qualifyingHistory() {
+    return history.filter(record => record?.qualifying || record?.completed);
+  }
+
+  function rangedHistory() {
+    const records = qualifyingHistory();
+    if (historyRange === "all") return records;
+    const count = Math.max(1, Number(historyRange) || 30);
+    return records.slice(-count);
+  }
+
+  function normalizedRoundSummaries(record) {
+    if (Array.isArray(record?.roundSummaries) && record.roundSummaries.length) return record.roundSummaries;
+    const config = record?.config || settings;
+    const t = record?.telemetry || {};
+    const maxReached = Math.max(1, Math.min(Number(config.cycles) || 1, Math.max(Number(record?.roundsCompleted) || 0, Number(record?.stopCycle) || 1)));
+    const result = [];
+    for (let cycle = 1; cycle <= maxReached; cycle += 1) {
+      const cycleKey = String(cycle);
+      const breathsCompleted = Number(t?.breathsCompleted?.[cycleKey]) || 0;
+      const phaseCells = t?.phaseByCycle?.[cycleKey] || {};
+      const hold = t?.holdCycles?.[cycleKey] || {};
+      const substantivePhases = ["inhale", "exhale", "exhaleHold", "recoveryInhale", "recoveryHold"];
+      const hasEvidence = breathsCompleted > 0 || substantivePhases.some(phase => (Number(phaseCells?.[phase]?.visits) || 0) > 0) || Object.keys(hold).length > 0;
+      if (!hasEvidence) continue;
+      const values = valuesForCycle(cycle, config);
+      const holdAdded = Number(hold.addedSec) || 0;
+      const holdPause = Number(hold.pauseExtensionSec) || 0;
+      const holdSkipped = Number(hold.skippedRemainingSec) || 0;
+      const rest = phaseCells.nextRoundPause || {};
+      const countdown = phaseCells.nextRoundCountdown || {};
+      result.push({
+        cycle, breathsCompleted, plannedBreaths:Number(config.breaths)||0,
+        inhaleSec:Number(values.inhale)||0, exhaleSec:Number(values.exhale)||0,
+        plannedHoldSec:Number(values.hold)||0,
+        estimatedHoldSec:Math.max(0,(Number(values.hold)||0)+holdAdded+holdPause-holdSkipped),
+        holdAddedSec:holdAdded, holdPauseExtensionSec:holdPause, holdSkippedRemainingSec:holdSkipped,
+        extraRestSec:(Number(rest.pauseSec)||0)+(Number(countdown.pauseSec)||0)
+      });
+    }
+    return result;
+  }
+
+  function actualHoldForRecord(record) {
+    const config = record?.config || settings;
+    const reachedCycle = Math.max(1, Math.min(Number(config.cycles) || 1, Number(record.roundsCompleted) || Number(record.stopCycle) || 1));
+    const planned = valuesForCycle(reachedCycle, config).hold;
+    return Math.max(0, planned + holdSignalForRecord(record, reachedCycle));
+  }
+
+  function extraInterRoundPauseForRecord(record) {
+    const t = record?.telemetry || {};
+    const pause = Number(t?.phasePauseDurations?.nextRoundPause) || 0;
+    const countdown = Number(t?.phasePauseDurations?.nextRoundCountdown) || 0;
+    const opportunities = Math.max(1, Math.min(Number(record?.roundsCompleted) || 0, Math.max(0, (Number(record?.config?.cycles) || 1) - 1)));
+    return (pause + countdown) / opportunities;
+  }
+
+  function roundsForRecord(record) {
+    if (record?.completed) return Number(record?.config?.cycles) || Number(record?.roundsCompleted) || 0;
+    return Number(record?.roundsCompleted) || 0;
+  }
+
+  function durationMinutesForRecord(record) {
+    return Math.max(0, ((Number(record?.endedAt) || 0) - (Number(record?.startedAt) || 0)) / 60000);
+  }
+
+  function representativePaceForRecord(record) {
+    const config = record?.config || settings;
+    const reachedCycle = Math.max(1, Math.min(Number(config.cycles) || 1, Number(record.roundsCompleted) || Number(record.stopCycle) || 1));
+    const values = valuesForCycle(reachedCycle, config);
+    return Math.max(0, (Number(values.inhale) || 0) + (Number(values.exhale) || 0));
+  }
+
+  function recoveryHoldForRecord(record) {
+    const config = record?.config || settings;
+    const t = record?.telemetry || {};
+    const rounds = Math.max(1, roundsForRecord(record));
+    const added = (Number(t.recoveryHoldAddedSec) || 0) / rounds;
+    const paused = (Number(t?.phasePauseDurations?.recoveryHold) || 0) / rounds;
+    const skipped = (Number(t.recoveryHoldSkippedRemainingSec) || 0) / rounds;
+    return Math.max(0, (Number(config.recoveryHoldSec) || 0) + added + paused - skipped);
+  }
+
+  function metricValue(record, metric) {
+    if (metric === "hold") return actualHoldForRecord(record);
+    if (metric === "pause") return extraInterRoundPauseForRecord(record);
+    if (metric === "rounds") return roundsForRecord(record);
+    if (metric === "duration") return durationMinutesForRecord(record);
+    if (metric === "pace") return representativePaceForRecord(record);
+    if (metric === "recovery") return recoveryHoldForRecord(record);
+    return durationMinutesForRecord(record);
+  }
+
+  function metricMeta(metric) {
+    return {
+      hold: { label: "Haltezeit", unit: "s", context: "Tatsächliche Haltezeit der jeweils spätesten erreichten Runde." },
+      pause: { label: "Zusatzpause", unit: "s", context: "Zusätzliche Pause, die du zwischen den Runden aktiv genommen hast." },
+      rounds: { label: "Runden", unit: "", context: "Tatsächlich vollständig absolvierte Runden – auch bei bewusst früherem Ende." },
+      duration: { label: "Sitzungsdauer", unit: "min", context: "Reale Dauer jeder auswertbaren Sitzung einschließlich deiner zusätzlichen Pausen." },
+      pace: { label: "Atemtempo", unit: "s/Zug", context: "Geplante Ein- plus Ausatemzeit in der jeweils spätesten erreichten Runde." },
+      recovery: { label: "Erholungs-Halten", unit: "s", context: "Geschätzte Erholungs-Haltezeit pro Runde inklusive manueller Verlängerungen und Pausen." }
+    }[metric];
+  }
+
+  function renderHistoryChart(metric = historyMetric) {
+    historyMetric = metric;
+    const records = rangedHistory();
+    const svg = document.getElementById("historyChart");
+    const empty = document.getElementById("chartEmpty");
+    const context = document.getElementById("chartContext");
+    if (!svg || !empty) return;
+    const meta = metricMeta(metric);
+    if (context) context.textContent = meta.context;
+    document.querySelectorAll("[data-history-metric]").forEach(btn => btn.classList.toggle("active", btn.dataset.historyMetric === metric));
+    document.querySelectorAll("[data-history-range]").forEach(btn => btn.classList.toggle("active", btn.dataset.historyRange === historyRange));
+    if (!records.length) {
+      svg.innerHTML = "";
+      svg.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+    svg.hidden = false;
+    empty.hidden = true;
+    const values = records.map(r => metricValue(r, metric)).filter(Number.isFinite);
+    const width = 760, height = 250, left = 46, right = 18, top = 22, bottom = 38;
+    const plotW = width - left - right, plotH = height - top - bottom;
+    let min = Math.min(...values), max = Math.max(...values);
+    if (min === max) { min = Math.max(0, min - 1); max += 1; }
+    const pad = Math.max((max - min) * .12, metric === "rounds" ? .4 : .5);
+    min = metric === "rounds" ? Math.max(0, Math.floor(min - pad)) : Math.max(0, min - pad);
+    max = metric === "rounds" ? Math.ceil(max + pad) : max + pad;
+    const x = index => left + (records.length <= 1 ? plotW / 2 : index / (records.length - 1) * plotW);
+    const y = value => top + (max - value) / Math.max(.0001, max - min) * plotH;
+    const points = records.map((r,i) => `${x(i).toFixed(1)},${y(metricValue(r,metric)).toFixed(1)}`).join(" ");
+    const grids = [0,.25,.5,.75,1].map(f => {
+      const yy = top + f * plotH;
+      const val = max - f * (max - min);
+      const label = metric === "rounds" ? Math.round(val) : formatNumber(val, ["duration","pace","recovery"].includes(metric) ? 1 : 0);
+      return `<line x1="${left}" y1="${yy}" x2="${width-right}" y2="${yy}" stroke="rgba(255,255,255,.08)"/><text x="${left-8}" y="${yy+4}" text-anchor="end" fill="#8492a8" font-size="11">${label}</text>`;
+    }).join("");
+    const dots = records.map((r,i) => {
+      const partial = !r.completed;
+      const v = metricValue(r,metric);
+      const sessionId = r.sessionId || `legacy-${Number(r.endedAt)||i}`;
+      return `<circle data-session-id="${escapeHtml(sessionId)}" tabindex="0" cx="${x(i)}" cy="${y(v)}" r="${partial ? 5 : 4}" fill="${partial ? '#c7a7ff' : '#87e5bd'}" style="cursor:pointer"><title>Sitzung ${i+1}: ${formatNumber(v, ["duration","pace","recovery"].includes(metric)?1:0)} ${meta.unit}${partial?' · bewusst vorzeitig beendet':''}</title></circle>`;
+    }).join("");
+    const firstDate = records[0]?.endedAt ? new Date(records[0].endedAt).toLocaleDateString("de-DE", {day:"2-digit",month:"2-digit"}) : "1";
+    const lastDate = records.at(-1)?.endedAt ? new Date(records.at(-1).endedAt).toLocaleDateString("de-DE", {day:"2-digit",month:"2-digit"}) : String(records.length);
+    svg.innerHTML = `${grids}<polyline points="${points}" fill="none" stroke="#87e5bd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${dots}<text x="${left}" y="${height-10}" fill="#8492a8" font-size="11">${escapeHtml(firstDate)}</text><text x="${width-right}" y="${height-10}" text-anchor="end" fill="#8492a8" font-size="11">${escapeHtml(lastDate)}</text>`;
+    svg.querySelectorAll("[data-session-id]").forEach(node => {
+      const open = () => {
+        const id = node.getAttribute("data-session-id");
+        const record = records.find((r,i) => (r.sessionId || `legacy-${Number(r.endedAt)||i}`) === id);
+        if (record) openSessionDetail(record);
+      };
+      node.addEventListener("click", open);
+      node.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } });
+    });
+  }
+
+  function sessionDisplayTitle(record, absoluteIndex) {
+    const date = record?.endedAt ? new Date(record.endedAt).toLocaleDateString("de-DE", { day:"2-digit", month:"2-digit", year:"2-digit" }) : "ohne Datum";
+    return `Sitzung ${absoluteIndex + 1} · ${date}`;
+  }
+
+  function renderSessionHistoryList() {
+    const container = document.getElementById("sessionHistoryList");
+    if (!container) return;
+    const all = qualifyingHistory();
+    const rangeRecords = rangedHistory();
+    const records = rangeRecords.slice(-sessionListLimit);
+    const moreBtn = document.getElementById("sessionHistoryMoreBtn");
+    if (!rangeRecords.length) {
+      container.innerHTML = '<div class="ai-status-box">Noch keine auswertbaren Sitzungen vorhanden.</div>';
+      if (moreBtn) moreBtn.style.display = "none";
+      return;
+    }
+    if (moreBtn) {
+      const remaining = Math.max(0, rangeRecords.length - records.length);
+      moreBtn.style.display = remaining > 0 ? "inline-flex" : "none";
+      moreBtn.textContent = remaining > 0 ? `Weitere ${Math.min(12, remaining)} Sitzungen anzeigen` : "";
+    }
+    const startIndex = all.length - records.length;
+    container.innerHTML = [...records].reverse().map((record, reverseIndex) => {
+      const idx = startIndex + (records.length - 1 - reverseIndex);
+      const partial = !record.completed;
+      const duration = durationMinutesForRecord(record);
+      const extraPause = extraInterRoundPauseForRecord(record);
+      const hold = actualHoldForRecord(record);
+      const id = record.sessionId || `legacy-${Number(record.endedAt)||idx}`;
+      return `<button class="session-row" type="button" data-session-open="${escapeHtml(id)}"><div><strong>${escapeHtml(sessionDisplayTitle(record, idx))}</strong><span>${roundsForRecord(record)}/${Number(record?.config?.cycles)||0} Runden · ${Number(record?.totalBreathsCompleted)||0} Atemzüge · ${formatNumber(duration,1)} min</span>${partial?'<span class="session-badge">bewusst früher beendet</span>':''}</div><div class="session-row-value">${formatNumber(hold,0)} s<small>Haltezeit · +${formatNumber(extraPause,0)} s Pause</small></div></button>`;
+    }).join("");
+    container.querySelectorAll("[data-session-open]").forEach(btn => btn.addEventListener("click", () => {
+      const id = btn.dataset.sessionOpen;
+      const record = all.find((r,i) => (r.sessionId || `legacy-${Number(r.endedAt)||i}`) === id);
+      if (record) openSessionDetail(record);
+    }));
+  }
+
+  function openSessionDetail(record) {
+    const modal = document.getElementById("sessionDetailModal");
+    if (!modal) return;
+    const all = qualifyingHistory();
+    const index = Math.max(0, all.indexOf(record));
+    const date = record?.endedAt ? new Date(record.endedAt).toLocaleString("de-DE", { day:"2-digit", month:"long", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "Sitzung";
+    document.getElementById("sessionDetailDate").textContent = date;
+    document.getElementById("sessionDetailTitle").textContent = `Sitzung ${index + 1}${record.completed ? " · vollständig" : " · bewusst beendet"}`;
+    const kpis = [
+      [`${roundsForRecord(record)}/${Number(record?.config?.cycles)||0}`, "Runden"],
+      [`${Number(record?.totalBreathsCompleted)||0}`, "Atemzüge"],
+      [`${formatNumber(durationMinutesForRecord(record),1)} min`, "Dauer"],
+      [`+${formatNumber(extraInterRoundPauseForRecord(record),0)} s`, "Ø Zusatzpause"]
+    ];
+    document.getElementById("sessionDetailKpis").innerHTML = kpis.map(([v,l]) => `<div class="session-detail-kpi"><strong>${escapeHtml(v)}</strong><span>${escapeHtml(l)}</span></div>`).join("");
+    const rounds = normalizedRoundSummaries(record);
+    document.getElementById("sessionRoundDetails").innerHTML = rounds.length ? rounds.map(r => {
+      const holdDelta = (Number(r.holdAddedSec)||0)+(Number(r.holdPauseExtensionSec)||0)-(Number(r.holdSkippedRemainingSec)||0);
+      const holdNote = holdDelta > .5 ? `+${formatNumber(holdDelta,0)} s angepasst` : holdDelta < -.5 ? `${formatNumber(holdDelta,0)} s gegenüber Plan` : "nahe Plan";
+      return `<div class="round-detail"><div class="round-detail-head"><strong>Runde ${r.cycle}</strong><span>${formatNumber(r.estimatedHoldSec,0)} s halten</span></div><div class="round-detail-meta"><div><strong>${r.breathsCompleted}/${r.plannedBreaths}</strong><br>Atemzüge</div><div><strong>${formatNumber(r.inhaleSec)}/${formatNumber(r.exhaleSec)} s</strong><br>Ein / Aus</div><div><strong>+${formatNumber(r.extraRestSec,0)} s</strong><br>Zusatzpause vor Runde</div></div><div class="privacy-note" style="margin-top:9px">Plan ${formatNumber(r.plannedHoldSec,0)} s · ${escapeHtml(holdNote)}</div></div>`;
+    }).join("") : '<div class="ai-status-box">Für diese ältere Sitzung sind noch keine Rundendetails gespeichert.</div>';
+    modal.classList.add("open");
+  }
+
+  function closeSessionDetail() {
+    document.getElementById("sessionDetailModal")?.classList.remove("open");
+  }
+
+  function summarizeForDashboard(records) {
+    if (!records.length) return { count:0, rounds:0, pause:0, hold:0, partial:0 };
+    return {
+      count: records.length,
+      rounds: median(records.map(roundsForRecord)),
+      pause: median(records.map(extraInterRoundPauseForRecord)),
+      hold: median(records.map(actualHoldForRecord)),
+      partial: records.filter(r => !r.completed).length
+    };
+  }
+
+  function renderAnalysisKpis() {
+    const records = qualifyingHistory();
+    const recent = records.slice(-10);
+    const s = summarizeForDashboard(recent);
+    const kpis = document.getElementById("analysisKpis");
+    if (!kpis) return;
+    kpis.innerHTML = [
+      [`${s.count}`, "letzte auswertbare Sessions", records.length ? `${records.length} insgesamt gespeichert` : "noch keine Historie"],
+      [formatNumber(s.rounds,1), "Median absolvierte Runden", s.partial ? `${s.partial}/${s.count} zuletzt bewusst früher beendet` : "vollständige Sessions"],
+      [`+${formatNumber(s.pause,0)} s`, "Median zusätzliche Rundenpause", "aktive Pausen werden separat erfasst"],
+      [`${formatNumber(s.hold,0)} s`, "Median späteste Haltephase", "tatsächliche Nutzung inkl. Anpassungen"]
+    ].map(([value,label,small]) => `<div class="analysis-kpi"><strong>${value}</strong><span>${escapeHtml(label)}</span><small>${escapeHtml(small)}</small></div>`).join("");
+  }
+
+  function sessionSummaryForAi(record, index) {
+    const cfg = record?.config || {};
+    const t = record?.telemetry || {};
+    const holdSignals = Object.keys(t.holdCycles || {}).map(key => ({
+      cycle: Number(key),
+      planned_sec: valuesForCycle(Number(key), cfg).hold,
+      added_sec: Number(t.holdCycles[key]?.addedSec) || 0,
+      pause_extension_sec: Number(t.holdCycles[key]?.pauseExtensionSec) || 0,
+      skipped_remaining_sec: Number(t.holdCycles[key]?.skippedRemainingSec) || 0
+    }));
+    return {
+      session_index: index + 1,
+      ended_at: Number(record?.endedAt) || 0,
+      completed_full_plan: Boolean(record?.completed),
+      planned_rounds: Number(cfg.cycles) || 0,
+      rounds_completed: roundsForRecord(record),
+      planned_breaths_per_round: Number(cfg.breaths) || 0,
+      total_breaths_completed: Number(record?.totalBreathsCompleted) || 0,
+      stop_phase: record?.stopPhase || "unknown",
+      actual_session_minutes: Number(durationMinutesForRecord(record).toFixed(2)),
+      representative_hold_sec: Number(actualHoldForRecord(record).toFixed(1)),
+      extra_inter_round_pause_sec: Number(extraInterRoundPauseForRecord(record).toFixed(1)),
+      phase_pauses_sec: t.phasePauseDurations || {},
+      phase_skips: t.phaseSkips || {},
+      hold_signals: holdSignals,
+      round_summaries: normalizedRoundSummaries(record).map(r => ({
+        cycle:r.cycle, breaths_completed:r.breathsCompleted, planned_breaths:r.plannedBreaths,
+        planned_hold_sec:Number(r.plannedHoldSec.toFixed(1)), estimated_hold_sec:Number(r.estimatedHoldSec.toFixed(1)),
+        extra_rest_sec:Number((r.extraRestSec||0).toFixed(1))
+      }))
+    };
+  }
+
+  function buildAiPayload() {
+    const all = qualifyingHistory();
+    const last10 = all.slice(-10);
+    const previous10 = all.slice(-20,-10);
+    const allowed = buildAdaptiveSuggestion(last10).changes.map((change,index) => ({
+      id: `change_${index}_${change.key}`,
+      key: change.key,
+      label: change.label,
+      from: Number(change.from),
+      to: Number(change.to),
+      unit: change.unit || "",
+      reason: change.reason,
+      alsoKeys: change.alsoKeys || [],
+      alsoKeyValue: change.alsoKeyValue || null
+    }));
+    const maxTrendPoints = 240;
+    const sampled = all.length <= maxTrendPoints
+      ? all.map((record,index) => ({ record, absoluteIndex: index }))
+      : Array.from({ length: maxTrendPoints }, (_, index) => {
+          const absoluteIndex = Math.round(index * (all.length - 1) / (maxTrendPoints - 1));
+          return { record: all[absoluteIndex], absoluteIndex };
+        });
+    const allSeries = sampled.map(({record, absoluteIndex}) => ({
+      index: absoluteIndex + 1,
+      ended_at: Number(record.endedAt) || 0,
+      completed_full_plan: Boolean(record.completed),
+      rounds: roundsForRecord(record),
+      hold_sec: Number(actualHoldForRecord(record).toFixed(1)),
+      extra_pause_sec: Number(extraInterRoundPauseForRecord(record).toFixed(1)),
+      duration_min: Number(durationMinutesForRecord(record).toFixed(2))
+    }));
+    return {
+      profile: { name: profile.name || "", tone: profile.tone || "personal", goal: profile.goal || "" },
+      current_settings: { ...settings },
+      last_10: last10.map(sessionSummaryForAi),
+      previous_10_summary: summarizeForDashboard(previous10),
+      last_10_summary: summarizeForDashboard(last10),
+      all_time_series: allSeries,
+      recommendation_history: aiRecommendationActions.slice(-20),
+      allowed_changes: allowed,
+      product_rules: {
+        user_is_hero: true,
+        do_not_equate_more_with_better: true,
+        no_medical_diagnosis: true,
+        recommendations_must_reference_allowed_change_ids_only: true
+      }
+    };
+  }
+
+  async function requestAiReport({ showModal = true } = {}) {
+    const endpoint = getAiEndpoint();
+    const records = qualifyingHistory();
+    if (!profile.aiEnabled) throw new Error("KI-Auswertungen sind im Profil deaktiviert.");
+    if (!endpoint || !/^https:\/\//i.test(endpoint)) throw new Error("Bitte zuerst unter Profil eine HTTPS-Backend-URL eintragen.");
+    if (records.length < 1) throw new Error("Noch keine auswertbaren Sitzungen vorhanden.");
+    if (showModal) showAiLoadingModal();
+    const payload = buildAiPayload();
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body?.error || `KI-Backend antwortet mit HTTP ${response.status}.`);
+    const report = {
+      ...body,
+      id: body.id || `report-${Date.now()}`,
+      createdAt: Date.now(),
+      windowEnd: records.at(-1)?.endedAt || Date.now(),
+      windowStart: records.slice(-10)[0]?.endedAt || records[0]?.endedAt || Date.now(),
+      allowedChanges: payload.allowed_changes
+    };
+    aiReports.push(report);
+    saveAiReports();
+    activeAiReport = report;
+    renderAnalysisDashboard();
+    if (showModal) renderAiReportModal(report);
+    return report;
+  }
+
+  function showAiLoadingModal() {
+    const modal = document.getElementById("aiReportModal");
+    document.getElementById("aiReportTitle").textContent = "Deine Auswertung wird erstellt …";
+    document.getElementById("aiReportSummary").innerHTML = '<span class="loading-pulse"></span>Die KI verbindet deine letzten Sitzungen mit deinem bisherigen Verlauf.';
+    document.getElementById("aiModalStoryRail").innerHTML = "";
+    document.getElementById("aiModalStoryDots").innerHTML = "";
+    document.getElementById("aiModalRecommendations").innerHTML = '<div class="ai-status-box">Die regelbasiert erlaubten Änderungen werden parallel geprüft.</div>';
+    modal?.classList.add("open");
+  }
+
+  function reportCards(report) {
+    return Array.isArray(report?.cards) ? report.cards.slice(0,6) : [];
+  }
+
+  function renderStoryRail(container, dotsContainer, report) {
+    if (!container || !dotsContainer) return;
+    const cards = reportCards(report);
+    if (!cards.length) {
+      container.innerHTML = "";
+      dotsContainer.innerHTML = "";
+      return;
+    }
+    container.innerHTML = cards.map((card,index) => `<article class="story-card"><div class="story-index">${index+1}</div><span class="ai-badge" style="margin-top:16px"><span class="ai-star">✦</span> ${escapeHtml(card.label || "KI-Insight")}</span><h3>${escapeHtml(card.title || "Dein Muster")}</h3><p>${escapeHtml(card.text || "")}</p>${card.evidence ? `<div class="evidence">${escapeHtml(card.evidence)}</div>` : ""}</article>`).join("");
+    dotsContainer.innerHTML = cards.map((_,index) => `<button type="button" class="story-dot${index===0?' active':''}" aria-label="Karte ${index+1}"></button>`).join("");
+    const dots = [...dotsContainer.querySelectorAll(".story-dot")];
+    const storyCards = [...container.querySelectorAll(".story-card")];
+    const updateDots = () => {
+      let best = 0, distance = Infinity;
+      storyCards.forEach((card,index) => { const d = Math.abs(card.offsetLeft - container.scrollLeft); if (d < distance) { distance = d; best = index; } });
+      dots.forEach((dot,index) => dot.classList.toggle("active", index === best));
+    };
+    container.onscroll = () => window.requestAnimationFrame(updateDots);
+    dots.forEach((dot,index) => dot.onclick = () => storyCards[index]?.scrollIntoView({ behavior:"smooth", inline:"start", block:"nearest" }));
+  }
+
+  function findAllowedChange(report, changeId) {
+    return (report?.allowedChanges || []).find(change => change.id === changeId) || null;
+  }
+
+  function recommendationMarkup(report) {
+    const recs = Array.isArray(report?.recommendations) ? report.recommendations : [];
+    if (!recs.length) return '<div class="ai-status-box"><strong>Keine Änderung empfohlen.</strong> Die KI sieht derzeit kein ausreichend klares Muster innerhalb der lokal erlaubten Anpassungen.</div>';
+    return recs.map(rec => {
+      const change = findAllowedChange(report, rec.change_id);
+      if (!change) return "";
+      return `<div class="ai-rec" data-change-id="${escapeHtml(change.id)}"><div class="ai-rec-top"><div><h3>${escapeHtml(rec.title || change.label)}</h3><p>${escapeHtml(rec.rationale || change.reason)}</p></div><div class="ai-change">${formatNumber(change.from)} → ${formatNumber(change.to)}${change.unit ? ` ${escapeHtml(change.unit)}` : ""}</div></div><div class="ai-rec-actions"><button class="btn good compact ai-apply-change" type="button">Übernehmen</button><button class="btn secondary compact ai-reject-change" type="button">Ablehnen</button><button class="btn secondary compact ai-why" type="button">Warum?</button></div><div class="ai-rec-detail">${escapeHtml(rec.evidence || change.reason)}${rec.confidence_label ? ` · Muster: ${escapeHtml(rec.confidence_label)}` : ""}</div></div>`;
+    }).join("");
+  }
+
+  function bindRecommendationContainer(container, report) {
+    if (!container) return;
+    container.querySelectorAll(".ai-why").forEach(btn => btn.addEventListener("click", () => {
+      const detail = btn.closest(".ai-rec")?.querySelector(".ai-rec-detail");
+      detail?.classList.toggle("open");
+      btn.textContent = detail?.classList.contains("open") ? "Weniger" : "Warum?";
+    }));
+    container.querySelectorAll(".ai-apply-change").forEach(btn => btn.addEventListener("click", () => {
+      const card = btn.closest(".ai-rec");
+      const change = findAllowedChange(report, card?.dataset.changeId);
+      if (!change) return;
+      const next = { ...settings, [change.key]: change.to };
+      for (const key of change.alsoKeys || []) next[key] = change.to;
+      if (change.alsoKeyValue) Object.assign(next, change.alsoKeyValue);
+      applySettingsToForm(next);
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      recordAiRecommendationAction(report, change, "accepted");
+      btn.textContent = "Übernommen ✓";
+      btn.disabled = true;
+      const rejectBtn = card?.querySelector(".ai-reject-change");
+      if (rejectBtn) rejectBtn.disabled = true;
+      flashSaveStatus("KI-Vorschlag übernommen");
+      log(`KI-Empfehlung übernommen: ${change.label}.`);
+    }));
+    container.querySelectorAll(".ai-reject-change").forEach(btn => btn.addEventListener("click", () => {
+      const card = btn.closest(".ai-rec");
+      const change = findAllowedChange(report, card?.dataset.changeId);
+      if (!change) return;
+      recordAiRecommendationAction(report, change, "rejected");
+      btn.textContent = "Abgelehnt ✓";
+      btn.disabled = true;
+      const applyBtn = card?.querySelector(".ai-apply-change");
+      if (applyBtn) applyBtn.disabled = true;
+      log(`KI-Empfehlung abgelehnt: ${change.label}.`);
+    }));
+  }
+
+  function renderAiReportModal(report) {
+    const modal = document.getElementById("aiReportModal");
+    document.getElementById("aiReportTitle").textContent = report.headline || "Deine persönliche Auswertung";
+    document.getElementById("aiReportSummary").textContent = report.summary || "Deine letzten Sitzungen wurden ausgewertet.";
+    renderStoryRail(document.getElementById("aiModalStoryRail"), document.getElementById("aiModalStoryDots"), report);
+    const recContainer = document.getElementById("aiModalRecommendations");
+    recContainer.innerHTML = recommendationMarkup(report);
+    bindRecommendationContainer(recContainer, report);
+    modal?.classList.add("open");
+  }
+
+  function renderAiReportInDashboard(report) {
+    const status = document.getElementById("aiStatusBox");
+    if (!report) {
+      status.innerHTML = `<strong>Noch kein KI-Bericht.</strong> ${getAiEndpoint() ? "Du kannst jetzt eine Auswertung erstellen." : "Verbinde zuerst unter Profil dein Backend."}`;
+      document.getElementById("storyRail").innerHTML = "";
+      document.getElementById("storyDots").innerHTML = "";
+      document.getElementById("aiRecommendations").innerHTML = '<div class="ai-status-box">Noch keine Empfehlungen vorhanden.</div>';
+      return;
+    }
+    status.innerHTML = `<span class="ai-badge"><span class="ai-star">✦</span> Aktueller Bericht</span><div style="margin-top:9px"><strong>${escapeHtml(report.headline || "Deine Auswertung")}</strong><div style="margin-top:5px">${escapeHtml(report.summary || "")}</div></div>`;
+    renderStoryRail(document.getElementById("storyRail"), document.getElementById("storyDots"), report);
+    const recContainer = document.getElementById("aiRecommendations");
+    recContainer.innerHTML = recommendationMarkup(report);
+    bindRecommendationContainer(recContainer, report);
+    document.getElementById("analysisHeroTitle").textContent = report.headline || `${profile.name || "Du"}, deine Entwicklung im Überblick.`;
+    document.getElementById("analysisHeroText").textContent = report.summary || "";
+  }
+
+  function renderReportArchive() {
+    const box = document.getElementById("reportArchive");
+    if (!box) return;
+    if (!aiReports.length) { box.innerHTML = '<div class="ai-status-box">Noch keine gespeicherten KI-Auswertungen.</div>'; return; }
+    box.innerHTML = [...aiReports].reverse().map(report => {
+      const date = new Date(report.createdAt || Date.now()).toLocaleDateString("de-DE", { day:"2-digit", month:"2-digit", year:"numeric" });
+      return `<button class="ai-rec" type="button" data-report-id="${escapeHtml(report.id)}" style="text-align:left;color:inherit"><div class="ai-rec-top"><div><h3>✦ ${escapeHtml(report.headline || "KI-Auswertung")}</h3><p>${escapeHtml(report.summary || "")}</p></div><div class="ai-change" style="font-size:.82rem">${date}</div></div></button>`;
+    }).join("");
+    box.querySelectorAll("[data-report-id]").forEach(btn => btn.addEventListener("click", () => {
+      const report = aiReports.find(item => item.id === btn.dataset.reportId);
+      if (report) { activeAiReport = report; renderAiReportInDashboard(report); window.scrollTo({top:0,behavior:"smooth"}); }
+    }));
+  }
+
+  function renderAnalysisDashboard() {
+    renderAnalysisKpis();
+    renderHistoryChart(historyMetric);
+    renderSessionHistoryList();
+    const qualifying = qualifyingHistory();
+    const label = document.getElementById("analysisWindowLabel");
+    if (label) label.textContent = qualifying.length ? `${qualifying.length} gespeicherte Sitzungen` : "Noch keine Sitzungen";
+    const title = document.getElementById("analysisHeroTitle");
+    const text = document.getElementById("analysisHeroText");
+    if (title) title.textContent = `${profile.name || "Du"}, so entwickeln sich deine Sitzungen.`;
+    if (text) text.textContent = "Hier siehst du deine gespeicherten Atemsitzungen, tatsächlichen Haltezeiten, Pausen und absolvierten Runden.";
+  }
+
+  async function testAiConnection() {
+    const status = document.getElementById("aiConnectionStatus");
+    try {
+      const endpoint = getAiEndpoint();
+      if (!endpoint) throw new Error("Backend-URL fehlt.");
+      status.textContent = "Verbindung wird geprüft …";
+      const response = await fetch(endpoint.replace(/\/analyze\/?$/, "/health"), { method:"GET" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json().catch(() => ({}));
+      status.textContent = data?.ok ? "Verbunden ✓" : "Backend erreichbar, aber Health-Check unerwartet.";
+    } catch (error) { status.textContent = `Nicht verbunden: ${error.message}`; }
+  }
+
+  function bindV6Ui() {
+    document.querySelectorAll("[data-app-tab]").forEach(btn => btn.addEventListener("click", () => openAppTab(btn.dataset.appTab)));
+    document.querySelectorAll("[data-history-metric]").forEach(btn => btn.addEventListener("click", () => renderHistoryChart(btn.dataset.historyMetric)));
+    document.querySelectorAll("[data-history-range]").forEach(btn => btn.addEventListener("click", () => {
+      historyRange = btn.dataset.historyRange || "30";
+      sessionListLimit = 8;
+      renderHistoryChart(historyMetric);
+      renderSessionHistoryList();
+    }));
+    document.getElementById("sessionHistoryMoreBtn")?.addEventListener("click", () => {
+      sessionListLimit += 12;
+      renderSessionHistoryList();
+    });
+    document.getElementById("sessionDetailCloseBtn")?.addEventListener("click", closeSessionDetail);
+    document.getElementById("sessionDetailModal")?.addEventListener("click", event => { if (event.target?.id === "sessionDetailModal") closeSessionDetail(); });
+    document.getElementById("jumpToChartBtn")?.addEventListener("click", () => document.getElementById("historySection")?.scrollIntoView({behavior:"smooth",block:"start"}));
+    document.getElementById("generateAiBtn")?.addEventListener("click", async () => {
+      try { await requestAiReport({showModal:true}); }
+      catch (error) {
+        document.getElementById("aiReportTitle").textContent = "KI-Auswertung nicht verfügbar";
+        document.getElementById("aiReportSummary").innerHTML = `<span class="ai-error">${escapeHtml(error.message)}</span>`;
+        document.getElementById("aiModalRecommendations").innerHTML = '<div class="ai-status-box">Deine lokalen Statistiken und die regelbasierte Lernfunktion funktionieren weiterhin.</div>';
+      }
+    });
+    document.getElementById("aiReportCloseBtn")?.addEventListener("click", () => document.getElementById("aiReportModal")?.classList.remove("open"));
+    document.getElementById("openAnalysisFromModalBtn")?.addEventListener("click", () => { document.getElementById("aiReportModal")?.classList.remove("open"); openAppTab("analysisTab"); });
+    document.getElementById("saveProfileBtn")?.addEventListener("click", () => {
+      profile = {
+        ...profile,
+        name: document.getElementById("userNameInput")?.value.trim() || profile.name,
+        tone: document.getElementById("aiToneSelect")?.value || "personal",
+        goal: document.getElementById("userGoalInput")?.value.trim() || "",
+        aiEnabled: Boolean(document.getElementById("aiEnabledInput")?.checked)
+      };
+      const endpoint = document.getElementById("aiEndpointInput")?.value.trim() || "";
+      if (endpoint) localStorage.setItem(AI_ENDPOINT_KEY, endpoint); else localStorage.removeItem(AI_ENDPOINT_KEY);
+      saveProfile();
+      flashSaveStatus("Profil gespeichert");
+    });
+    document.getElementById("testAiBtn")?.addEventListener("click", testAiConnection);
+    el.settingsJumpBtn.addEventListener("click", () => { openAppTab("profileTab"); window.setTimeout(() => { el.settingsPanel.open = true; el.settingsPanel.scrollIntoView({behavior:"smooth",block:"start"}); },120); });
+
+    const onboarding = document.getElementById("onboardingModal");
+    const onboardingInput = document.getElementById("onboardingNameInput");
+    const onboardingContinue = document.getElementById("onboardingContinueBtn");
+    if (onboardingInput && onboardingContinue) {
+      const sync = () => { onboardingContinue.disabled = onboardingInput.value.trim().length < 2; };
+      onboardingInput.addEventListener("input", sync);
+      onboardingInput.addEventListener("keydown", event => { if (event.key === "Enter" && !onboardingContinue.disabled) onboardingContinue.click(); });
+      onboardingContinue.addEventListener("click", () => {
+        profile.name = onboardingInput.value.trim();
+        saveProfile();
+        onboarding.classList.remove("open");
+      });
+      sync();
+    }
+    if (!profile.name) onboarding?.classList.add("open");
+    applyProfileUi();
+    renderAnalysisDashboard();
+  }
+
+  async function maybeOfferAdaptiveSuggestion() {
+    // v8: KI- und Lernfunktionen bewusst entfernt.
+    return;
+  }
+
+
+
+  const MEDITATION_SOUND_SOURCE = "https://www.giuseppeflandoli.com/natures-frequency-fm-binaural-asmr-theta-1/Blog%20Post%20Title%20One-d2lbz-fOAyi-ad7nb-bjl2f-7gx4l-97s9f-29xra-jk4sj-hjytj-c7392-ywyxx-m2jd4-lknex";
+  const MEDITATION_SOUND_FILE = "https://static1.squarespace.com/static/63a9f24713a1ad2ae8807f05/t/6491d50d500b436dc6d32b85/1687278970248/396Hz+400.8Hz+4.8+Theta.mp3";
+  const SOUND_TIMER_PREF_KEY = "volmer-sound-timer-minutes-v1";
+  const SOUND_TIMER_STATE_KEY = "volmer-sound-timer-state-v1";
+  const SOUND_FADE_SEC = 15;
+  let soundAudioCtx = null;
+  let soundAudioSource = null;
+  let soundGainNode = null;
+  let soundGraphReady = false;
+  let soundCorsFallbackUsed = false;
+  const storedSoundTimerState = safeParse(localStorage.getItem(SOUND_TIMER_STATE_KEY));
+  let soundTimer = {
+    selectedMinutes: Math.max(1, Math.min(180, Number(localStorage.getItem(SOUND_TIMER_PREF_KEY)) || Number(storedSoundTimerState.selectedMinutes) || 20)),
+    active: Boolean(storedSoundTimerState.active && Number(storedSoundTimerState.totalSec) > Number(storedSoundTimerState.listenedSec)),
+    totalSec: Math.max(0, Number(storedSoundTimerState.totalSec) || 0),
+    listenedSec: Math.max(0, Number(storedSoundTimerState.listenedSec) || 0),
+    restoredAudioTime: Math.max(0, Number(storedSoundTimerState.audioTime) || 0),
+    lastTickAt: 0,
+    lastAudioTime: null,
+    intervalId: 0,
+    baseVolume: 1,
+    applyingFadeVolume: false,
+    fadeScheduled: false
+  };
+
+  function persistSoundTimerState() {
+    const audio = document.getElementById("meditationAudio");
+    localStorage.setItem(SOUND_TIMER_STATE_KEY, JSON.stringify({
+      selectedMinutes: soundTimer.selectedMinutes,
+      active: soundTimer.active,
+      totalSec: soundTimer.totalSec,
+      listenedSec: soundTimer.listenedSec,
+      audioTime: Number(audio?.currentTime) || 0
+    }));
+  }
+
+  async function ensureSoundGainGraph() {
+    const audio = document.getElementById("meditationAudio");
+    if (!audio || soundCorsFallbackUsed || audio.readyState < 1) return false;
+    if (soundGraphReady && soundGainNode && soundAudioCtx) {
+      try { if (soundAudioCtx.state === "suspended") await soundAudioCtx.resume(); } catch (_) {}
+      return true;
+    }
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return false;
+      soundAudioCtx = soundAudioCtx || new Ctx();
+      soundAudioSource = soundAudioSource || soundAudioCtx.createMediaElementSource(audio);
+      soundGainNode = soundGainNode || soundAudioCtx.createGain();
+      soundGainNode.gain.value = 1;
+      soundAudioSource.connect(soundGainNode);
+      soundGainNode.connect(soundAudioCtx.destination);
+      if (soundAudioCtx.state === "suspended") await soundAudioCtx.resume();
+      soundGraphReady = true;
+      return true;
+    } catch (error) {
+      console.warn("WebAudio-Fade nicht verfügbar; Fallback auf Media-Volume.", error);
+      soundGraphReady = false;
+      return false;
+    }
+  }
+
+  function setSoundFadeGain(level, { scheduleSec = 0 } = {}) {
+    const safe = Math.max(.001, Math.min(1, Number(level) || .001));
+    if (soundGraphReady && soundGainNode && soundAudioCtx) {
+      const now = soundAudioCtx.currentTime;
+      const param = soundGainNode.gain;
+      try {
+        param.cancelScheduledValues(now);
+        param.setValueAtTime(Math.max(.001, param.value || 1), now);
+        if (scheduleSec > .05) param.exponentialRampToValueAtTime(safe, now + scheduleSec);
+        else param.setValueAtTime(safe, now);
+        soundTimer.fadeScheduled = scheduleSec > .05;
+        return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  function cancelScheduledSoundFade() {
+    if (soundGraphReady && soundGainNode && soundAudioCtx) {
+      try {
+        const now = soundAudioCtx.currentTime;
+        const current = Math.max(.001, soundGainNode.gain.value || 1);
+        soundGainNode.gain.cancelScheduledValues(now);
+        soundGainNode.gain.setValueAtTime(current, now);
+      } catch (_) {}
+    }
+    soundTimer.fadeScheduled = false;
+  }
+
+  function setSoundStatus(message, state = "") {
+    const node = document.getElementById("soundStatus");
+    if (!node) return;
+    node.textContent = message;
+    node.classList.remove("success", "error");
+    if (state) node.classList.add(state);
+  }
+
+  function resolveMeditationSound() {
+    const audio = document.getElementById("meditationAudio");
+    if (!audio) return;
+    if (audio.src !== MEDITATION_SOUND_FILE) audio.src = MEDITATION_SOUND_FILE;
+    try { audio.load(); } catch (_) {}
+    setSoundStatus("Original-Audiodatei direkt eingebunden · bereit zum Abspielen.", "success");
+  }
+
+  function formatSoundTimer(sec) {
+    const safe = Math.max(0, Math.ceil(Number(sec) || 0));
+    const min = Math.floor(safe / 60);
+    const rem = safe % 60;
+    return `${min}:${String(rem).padStart(2, "0")}`;
+  }
+
+  function updateSoundTimerSelectionUi() {
+    const custom = document.getElementById("soundTimerCustomMinutes");
+    document.querySelectorAll("[data-sound-minutes]").forEach(btn => {
+      btn.classList.toggle("active", Number(btn.dataset.soundMinutes) === soundTimer.selectedMinutes);
+    });
+    if (custom && !custom.matches(":focus")) custom.value = String(soundTimer.selectedMinutes);
+  }
+
+  function updateSoundTimerUi() {
+    const clock = document.getElementById("soundTimerClock");
+    const state = document.getElementById("soundTimerState");
+    const progress = document.getElementById("soundTimerProgress");
+    const remaining = Math.max(0, soundTimer.totalSec - soundTimer.listenedSec);
+    const ratio = soundTimer.active && soundTimer.totalSec > 0 ? Math.min(1, soundTimer.listenedSec / soundTimer.totalSec) : 0;
+    if (clock) {
+      clock.textContent = soundTimer.active ? formatSoundTimer(remaining) : "—:—";
+      clock.classList.toggle("fading", soundTimer.active && remaining <= SOUND_FADE_SEC);
+    }
+    if (progress) progress.style.width = `${ratio * 100}%`;
+    if (state) {
+      if (!soundTimer.active) state.textContent = "Kein Timer aktiv.";
+      else if (remaining <= SOUND_FADE_SEC) state.textContent = `Sanftes Ausblenden · noch ${formatSoundTimer(remaining)}`;
+      else state.textContent = `Timer läuft · ${soundTimer.selectedMinutes} Min. Hörzeit`;
+    }
+  }
+
+  function restoreMeditationVolume(audio) {
+    if (!audio) return;
+    cancelScheduledSoundFade();
+    if (soundGraphReady && soundGainNode && soundAudioCtx) {
+      try {
+        const now = soundAudioCtx.currentTime;
+        soundGainNode.gain.cancelScheduledValues(now);
+        soundGainNode.gain.setValueAtTime(1, now);
+      } catch (_) {}
+    }
+    soundTimer.applyingFadeVolume = true;
+    try { audio.volume = Math.max(0, Math.min(1, soundTimer.baseVolume || 1)); } catch (_) {}
+    soundTimer.applyingFadeVolume = false;
+  }
+
+  function stopSoundTimer({ ended = false } = {}) {
+    const audio = document.getElementById("meditationAudio");
+    if (soundTimer.intervalId) window.clearInterval(soundTimer.intervalId);
+    soundTimer.intervalId = 0;
+    soundTimer.active = false;
+    soundTimer.lastTickAt = 0;
+    soundTimer.lastAudioTime = null;
+    if (ended && audio) {
+      try { audio.pause(); } catch (_) {}
+      restoreMeditationVolume(audio);
+      setSoundStatus("Sound-Timer beendet · der Sound wurde sanft ausgeblendet.", "success");
+    } else {
+      restoreMeditationVolume(audio);
+    }
+    persistSoundTimerState();
+    updateSoundTimerUi();
+  }
+
+  function soundTimerTick() {
+    if (!soundTimer.active) return;
+    const audio = document.getElementById("meditationAudio");
+    if (!audio) return stopSoundTimer();
+    const now = performance.now();
+    if (!audio.paused && !audio.ended) {
+      const mediaNow = Number(audio.currentTime);
+      if (Number.isFinite(mediaNow) && soundTimer.lastAudioTime !== null) {
+        const mediaDelta = mediaNow - soundTimer.lastAudioTime;
+        // currentTime bleibt auch bei gedrosselten Background-Timern die beste Quelle für tatsächlich gehörte Zeit.
+        if (mediaDelta >= 0 && mediaDelta < 10) soundTimer.listenedSec += mediaDelta;
+        else if (mediaDelta >= 10 && !audio.seeking) soundTimer.listenedSec += mediaDelta;
+      } else if (soundTimer.lastTickAt) {
+        soundTimer.listenedSec += Math.max(0, (now - soundTimer.lastTickAt) / 1000);
+      }
+      soundTimer.lastAudioTime = Number.isFinite(mediaNow) ? mediaNow : null;
+      soundTimer.lastTickAt = now;
+    } else {
+      soundTimer.lastTickAt = 0;
+      soundTimer.lastAudioTime = null;
+    }
+
+    const remaining = Math.max(0, soundTimer.totalSec - soundTimer.listenedSec);
+    if (remaining <= SOUND_FADE_SEC && !audio.paused && !audio.ended) {
+      // iOS Safari ignoriert Änderungen an HTMLMediaElement.volume teilweise.
+      // Deshalb nutzt der Fade bevorzugt einen WebAudio-GainNode und plant den Rest des
+      // 15-Sekunden-Fades direkt in der Audio-Engine; Media-Volume bleibt nur Fallback.
+      const ratio = Math.max(0, Math.min(1, remaining / SOUND_FADE_SEC));
+      const fallbackGain = ratio <= 0 ? 0 : Math.pow(10, (-60 * (1 - ratio)) / 20);
+      if (soundGraphReady && !soundTimer.fadeScheduled) {
+        setSoundFadeGain(.001, { scheduleSec: Math.max(.05, remaining) });
+      } else if (!soundGraphReady) {
+        soundTimer.applyingFadeVolume = true;
+        try { audio.volume = Math.max(0, Math.min(1, soundTimer.baseVolume * fallbackGain)); } catch (_) {}
+        soundTimer.applyingFadeVolume = false;
+      }
+    } else if (soundTimer.fadeScheduled) {
+      cancelScheduledSoundFade();
+      setSoundFadeGain(1);
+    }
+
+    persistSoundTimerState();
+    updateSoundTimerUi();
+    if (remaining <= 0) stopSoundTimer({ ended: true });
+  }
+
+  async function startSoundTimer() {
+    const audio = document.getElementById("meditationAudio");
+    const custom = document.getElementById("soundTimerCustomMinutes");
+    if (!audio) return;
+    const requested = Number(custom?.value || soundTimer.selectedMinutes);
+    soundTimer.selectedMinutes = Math.max(1, Math.min(180, Math.round(requested || 20)));
+    localStorage.setItem(SOUND_TIMER_PREF_KEY, String(soundTimer.selectedMinutes));
+    if (soundTimer.intervalId) window.clearInterval(soundTimer.intervalId);
+    soundTimer.active = true;
+    soundTimer.totalSec = soundTimer.selectedMinutes * 60;
+    soundTimer.listenedSec = 0;
+    soundTimer.lastTickAt = audio.paused ? 0 : performance.now();
+    soundTimer.lastAudioTime = audio.paused ? null : Number(audio.currentTime);
+    soundTimer.baseVolume = Number.isFinite(audio.volume) ? Math.max(.01, audio.volume) : 1;
+    await ensureSoundGainGraph();
+    restoreMeditationVolume(audio);
+    soundTimer.fadeScheduled = false;
+    soundTimer.intervalId = window.setInterval(soundTimerTick, 200);
+    updateSoundTimerSelectionUi();
+    persistSoundTimerState();
+    updateSoundTimerUi();
+    setSoundStatus(soundGraphReady
+      ? `Sound-Timer auf ${soundTimer.selectedMinutes} Minuten gesetzt · 15-Sekunden-Fade über Audio-Engine aktiv.`
+      : `Sound-Timer auf ${soundTimer.selectedMinutes} Minuten gesetzt · Kompatibilitäts-Fade aktiv.`, "success");
+  }
+
+  function bindSoundsUi() {
+    const audio = document.getElementById("meditationAudio");
+    const sourceLink = document.getElementById("openSoundSourceLink");
+    const downloadLink = document.getElementById("downloadSoundFileLink");
+    if (sourceLink) sourceLink.href = MEDITATION_SOUND_SOURCE;
+    if (downloadLink) downloadLink.href = MEDITATION_SOUND_FILE;
+    if (audio) {
+      // crossorigin=anonymous ermöglicht auf unterstützenden Hosts den GainNode-Fade auf iOS.
+      // Falls Squarespace CORS ablehnt, wird einmal automatisch in normalen Streamingmodus zurückgefallen.
+      audio.crossOrigin = "anonymous";
+      audio.src = MEDITATION_SOUND_FILE;
+      soundTimer.baseVolume = Number.isFinite(audio.volume) ? Math.max(.01, audio.volume) : 1;
+      audio.addEventListener("loadedmetadata", () => {
+        if (soundTimer.restoredAudioTime > 0 && Number.isFinite(audio.duration)) {
+          try { audio.currentTime = Math.min(soundTimer.restoredAudioTime, Math.max(0, audio.duration - .25)); } catch (_) {}
+          soundTimer.restoredAudioTime = 0;
+        }
+        if (soundTimer.active && !soundTimer.intervalId) soundTimer.intervalId = window.setInterval(soundTimerTick, 200);
+        setSoundStatus(soundTimer.active
+          ? "Sound-Timer und Audioposition aus der letzten Version wiederhergestellt · Play zum Fortsetzen."
+          : "Original-Audiodatei geladen · bereit zum Abspielen.", "success");
+        updateSoundTimerUi();
+      });
+      audio.addEventListener("error", () => {
+        if (!soundCorsFallbackUsed && audio.crossOrigin) {
+          soundCorsFallbackUsed = true;
+          soundGraphReady = false;
+          try { audio.pause(); } catch (_) {}
+          audio.removeAttribute("crossorigin");
+          try { audio.crossOrigin = null; } catch (_) {}
+          audio.src = MEDITATION_SOUND_FILE;
+          try { audio.load(); } catch (_) {}
+          setSoundStatus("Sound läuft im Safari-Kompatibilitätsmodus. Der 15-Sekunden-Fade nutzt dann den Browser-Fallback.", "success");
+          return;
+        }
+        setSoundStatus("Die Original-MP3 konnte gerade nicht geladen werden. Öffne die MP3 direkt über den Button darunter.", "error");
+      });
+      audio.addEventListener("play", async () => {
+        // Auf iOS konkurrieren mehrere Audioelemente teilweise um dieselbe Media-Session.
+        // Sobald der echte Meditationssound läuft, wird der lautlose Timer-Träger nicht benötigt.
+        if (silentAudio) { try { silentAudio.pause(); } catch (_) {} }
+        await ensureSoundGainGraph();
+        if (soundTimer.active) {
+          if (soundGraphReady) {
+            const remaining = Math.max(0, soundTimer.totalSec - soundTimer.listenedSec);
+            if (remaining <= SOUND_FADE_SEC) setSoundFadeGain(.001, { scheduleSec: Math.max(.05, remaining) });
+          }
+          soundTimer.lastTickAt = performance.now();
+          soundTimer.lastAudioTime = Number(audio.currentTime);
+        }
+      });
+      audio.addEventListener("pause", () => {
+        cancelScheduledSoundFade();
+        soundTimer.lastTickAt = 0;
+        soundTimer.lastAudioTime = null;
+        if (session.active) startSilentMediaTrack();
+      });
+      audio.addEventListener("seeking", () => {
+        if (soundTimer.active) soundTimer.lastAudioTime = null;
+      });
+      audio.addEventListener("seeked", () => {
+        if (soundTimer.active && !audio.paused) soundTimer.lastAudioTime = Number(audio.currentTime);
+      });
+      audio.addEventListener("timeupdate", () => {
+        if (soundTimer.active) soundTimerTick();
+        else persistSoundTimerState();
+      });
+      audio.addEventListener("ended", () => {
+        stopSoundTimer();
+        if (session.active) startSilentMediaTrack();
+      });
+      audio.addEventListener("volumechange", () => {
+        if (!soundTimer.applyingFadeVolume && (!soundTimer.active || (soundTimer.totalSec - soundTimer.listenedSec) > SOUND_FADE_SEC)) {
+          soundTimer.baseVolume = Math.max(.01, audio.volume || 1);
+        }
+      });
+    }
+    document.querySelectorAll("[data-sound-minutes]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        soundTimer.selectedMinutes = Number(btn.dataset.soundMinutes) || 20;
+        localStorage.setItem(SOUND_TIMER_PREF_KEY, String(soundTimer.selectedMinutes));
+        persistSoundTimerState();
+        updateSoundTimerSelectionUi();
+      });
+    });
+    document.getElementById("soundTimerCustomMinutes")?.addEventListener("input", event => {
+      const value = Math.max(1, Math.min(180, Math.round(Number(event.target.value) || 0)));
+      if (value) {
+        soundTimer.selectedMinutes = value;
+        document.querySelectorAll("[data-sound-minutes]").forEach(btn => btn.classList.remove("active"));
+      }
+    });
+    document.getElementById("soundTimerStartBtn")?.addEventListener("click", startSoundTimer);
+    document.getElementById("soundTimerCancelBtn")?.addEventListener("click", () => {
+      stopSoundTimer();
+      setSoundStatus("Sound-Timer ausgeschaltet. Der Sound läuft normal weiter.", "success");
+    });
+    updateSoundTimerSelectionUi();
+    updateSoundTimerUi();
+    document.getElementById("resolveSoundBtn")?.addEventListener("click", resolveMeditationSound);
+  }
+
+
+  function bind() {
+    applySettingsToForm(settings);
+    setControls(false);
+
+    ids.forEach(id => {
+      const node = el[id];
+      node.addEventListener("input", () => {
+        if (node.type !== "checkbox") saveSettings({ announce: false });
+      });
+      node.addEventListener("change", () => saveSettings({ normalizeForm: true }));
+    });
+
+    el.cycleMinusBtn.addEventListener("click", () => adjustCycles(-1));
+    el.cyclePlusBtn.addEventListener("click", () => adjustCycles(1));
+    // v6 bindV6Ui übernimmt den Einstellungen-Button und wechselt zuerst in den Profil-Tab.
+
+    el.saveDefaultsBtn.addEventListener("click", saveCurrentAsDefaults);
+    el.applyDefaultsBtn.addEventListener("click", applySavedDefaults);
+    el.factoryDefaultsBtn.addEventListener("click", restoreFactoryDefaults);
+    el.resetLearningBtn.addEventListener("click", resetLearningHistory);
+    el.acceptSuggestionBtn.addEventListener("click", acceptAdaptiveSuggestion);
+    el.rejectSuggestionBtn.addEventListener("click", () => closeAdaptiveModal(true));
+    el.startBtn.addEventListener("click", startSession);
+    el.pauseBtn.addEventListener("click", togglePause);
+    el.addHoldBtn.addEventListener("click", () => addHoldTime(15));
+    el.skipBtn.addEventListener("click", skipPhase);
+    el.stopBtn.addEventListener("click", stopSession);
+
+    window.addEventListener("keydown", event => {
+      const tagName = document.activeElement?.tagName || "";
+      if (event.code === "Space" && tagName !== "INPUT" && tagName !== "BUTTON") {
+        event.preventDefault();
+        togglePause();
+      }
+    });
+
+    document.addEventListener("visibilitychange", async () => {
+      if (!session.active) return;
+      // Im Hintergrund übernimmt die epoch-basierte Uhr; im Vordergrund startet die flüssige UI wieder.
+      await startSilentMediaTrack();
+      if (document.visibilityState === "visible") {
+        syncSessionClock(true);
+        startUiLoop();
+        if (currentConfig().wakeLockEnabled) await requestWakeLock();
+      } else {
+        stopUiLoop();
+      }
+      updatePlaybackState();
+    });
+
+    window.addEventListener("pageshow", () => {
+      if (!session.active) return;
+      syncSessionClock(true);
+      if (document.visibilityState === "visible") startUiLoop();
+    });
+
+    window.addEventListener("beforeunload", () => {
+    persistSoundTimerState();
+      stopClock();
+      if (silentAudio && silentAudio.src.startsWith("blob:")) URL.revokeObjectURL(silentAudio.src);
+    });
+  }
+
+  bind();
+  bindV6Ui();
+  bindSoundsUi();
+  render();
+})();
+</script>
+</body>
+</html>
